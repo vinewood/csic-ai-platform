@@ -69,7 +69,7 @@ async def seed_all(session):
         ("中国海洋", "http://www.ncosm.org.cn", "行业", True),
     ]
     for name, url, category, active in rss_sources:
-        session.add(RssSource(name=name, url=url, category=category, is_active=active))
+        session.add(RssSource(name=name, url=url, category=category, active=active))
 
     # ── 5. 知识库（4个内置） ──
     kb_data = [
@@ -78,8 +78,8 @@ async def seed_all(session):
         ("教学资源库", "包含培训课程、课件模板、教学案例等教育资源", "教学"),
         ("政策法规库", "包含国家政策、行业法规、标准规范等文件", "政策"),
     ]
-    for name, desc, category in kb_data:
-        session.add(KnowledgeBase(name=name, description=desc, category=category))
+    for name, desc, kb_type in kb_data:
+        session.add(KnowledgeBase(name=name, description=desc, type=kb_type))
 
     # ── 6. 科研选题（8个内置） ──
     research_data = [
@@ -95,8 +95,8 @@ async def seed_all(session):
     for title, field, academic, innovation, feasibility, practice, desc in research_data:
         session.add(ResearchTopic(
             title=title, field=field, academic_value=academic,
-            innovation_score=innovation, feasibility=feasibility,
-            practice_value=practice, description=desc
+            innovation=innovation, feasibility=feasibility,
+            practical_value=practice, description=desc
         ))
 
     await session.commit()
