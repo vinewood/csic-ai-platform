@@ -2,11 +2,20 @@
 
 import json
 from fastapi import APIRouter, Depends, HTTPException
-from ..schemas import TeachingGenerateRequest, InspireRequest, ContentRequest
+from pydantic import BaseModel
+from typing import Optional, List
 from ..auth import get_current_user
 from ..config import get_api_config
 
 router = APIRouter(prefix="/api/teaching", tags=["教学"])
+
+# 教学请求模型
+class TeachingRequest(BaseModel):
+    input: Optional[str] = "党建培训"
+    depth: Optional[str] = "标准"
+    topic: Optional[str] = None
+    inspire_type: Optional[str] = None
+    content_types: Optional[List[str]] = None
 
 
 async def _ai_call(messages: list, model: str = "deepseek") -> str:
@@ -34,7 +43,7 @@ async def _ai_call(messages: list, model: str = "deepseek") -> str:
 
 
 @router.post("/generate")
-async def generate_topics(req: TeachingGenerateRequest, current_user: dict = Depends(get_current_user)):
+async def generate_topics(req: TeachingRequest, current_user: dict = Depends(get_current_user)):
     """AI 生成教学课题"""
     input_text = req.input or "党建培训"
     count = {"基础": 3, "标准": 5, "深入": 7}.get(req.depth or "标准", 5)
@@ -76,7 +85,7 @@ async def generate_topics(req: TeachingGenerateRequest, current_user: dict = Dep
 
 
 @router.post("/inspire")
-async def inspire_ideas(req: InspireRequest, current_user: dict = Depends(get_current_user)):
+async def inspire_ideas(req: TeachingRequest, current_user: dict = Depends(get_current_user)):
     """AI 生成教学灵感"""
     topic_title = req.topic or "党建教学"
     inspire_type = req.inspire_type or "案例"
@@ -110,7 +119,7 @@ async def inspire_ideas(req: InspireRequest, current_user: dict = Depends(get_cu
 
 
 @router.post("/content")
-async def generate_content(req: ContentRequest, current_user: dict = Depends(get_current_user)):
+async def generate_content(req: TeachingRequest, current_user: dict = Depends(get_current_user)):
     """AI 生成教学内容（大纲/讲稿/课件）"""
     topic_title = req.topic or "党建教学专题"
     types = req.content_types or ["教学大纲"]
@@ -118,13 +127,13 @@ async def generate_content(req: ContentRequest, current_user: dict = Depends(get
     result = {}
     for t in types:
         prompt_map = {
-            "教学大纲": f"请为主题"{topic_title}"生成一份详细的教学大纲，包含课程目标、教学内容、课时安排、考核方式，用 Markdown 格式",
-            "逐页讲稿": f"请为主题"{topic_title}"生成一份教师讲稿，包含开场白、逐页讲解内容、总结，用 Markdown 格式",
-            "配套案例": f"请为主题"{topic_title}"生成3个配套教学案例，每个案例包含背景、问题、解决方案",
-            "随堂测验": f"请为主题"{topic_title}"生成5道随堂测验题（含答案），题型包括选择题和简答题",
-            "PPT提纲": f"请为主题"{topic_title}"生成一份PPT课件提纲，10-15页，每页标注标题和要点",
+            "教学大纲": "请为主题 " + topic_title + " 生成一份详细的教学大纲，包含课程目标、教学内容、课时安排、考核方式，用 Markdown 格式",
+            "逐页讲稿": "请为主题 " + topic_title + " 生成一份教师讲稿，包含开场白、逐页讲解内容、总结，用 Markdown 格式",
+            "配套案例": "请为主题 " + topic_title + " 生成3个配套教学案例，每个案例包含背景、问题、解决方案",
+            "随堂测验": "请为主题 " + topic_title + " 生成5道随堂测验题（含答案），题型包括选择题和简答题",
+            "PPT提纲": "请为主题 " + topic_title + " 生成一份PPT课件提纲，10-15页，每页标注标题和要点",
         }
-        prompt = prompt_map.get(t, f"请为主题"{topic_title}"生成{t}内容")
+        prompt = prompt_map.get(t, "请为主题 " + topic_title + " 生成" + t + "内容")
 
         try:
             content = await _ai_call([{"role": "user", "content": prompt}])
