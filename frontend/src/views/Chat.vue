@@ -281,9 +281,9 @@ const prompts = [
 
 // 对话状态
 const mode = ref('single')
-const activeModel = ref('qwen')
-const multiModels = ref(['qwen', 'zhipu', 'minimax', 'doubao'])
-const activeTabModel = ref('qwen')
+const activeModel = ref('deepseek')
+const multiModels = ref(['deepseek', 'zhipu', 'minimax', 'doubao'])
+const activeTabModel = ref('deepseek')
 const multiLayout = ref('tab')
 const addModelId = ref('')
 const activeSkill = ref('')

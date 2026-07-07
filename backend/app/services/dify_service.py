@@ -51,7 +51,7 @@ conv_id_counter: int = 0
 
 async def chat_stream(
     query: str,
-    model: str = "qwen",
+    model: str = "deepseek",
     conversation_id: str = "",
     user_id: str = "default",
     temperature: float = 0.7,
@@ -59,7 +59,7 @@ async def chat_stream(
     max_tokens: int = 2048,
 ) -> AsyncGenerator[str, None]:
     """直接调用 LLM API，SSE 流式返回"""
-    endpoint = MODEL_ENDPOINTS.get(model, MODEL_ENDPOINTS["qwen"])
+    endpoint = MODEL_ENDPOINTS.get(model, MODEL_ENDPOINTS["deepseek"])
     api_key = get_api_config(model)
 
     if not api_key:

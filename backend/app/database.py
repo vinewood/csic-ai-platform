@@ -30,26 +30,7 @@ async def init_db():
 
 async def seed_db():
     """填充初始数据"""
+    from .seed import seed_all
     from .database import async_session
-    from .models import User
-    from .auth import get_password_hash
-
     async with async_session() as session:
-        from sqlalchemy import select
-        result = await session.execute(select(User).limit(1))
-        if result.scalar_one_or_none():
-            return  # 已有用户
-
-        admin = User(
-            username="admin",
-            email="admin@csic.cn",
-            hashed_password=get_password_hash("***REMOVED-PASSWORD***"),
-            is_active=True,
-        )
-        session.add(admin)
-
-        # 种子技能
-        from .routers.skills import seed_skills
-        await seed_skills(session)
-
-        await session.commit()
+        await seed_all(session)
