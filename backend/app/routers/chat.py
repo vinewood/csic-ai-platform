@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 from ..schemas import ChatRequest
 from ..auth import get_current_user
 from ..services.integrations import DifyService
-from ..services.dify_service import chat_stream as direct_chat, list_user_conversations, delete_user_conversation
+from ..services.dify_service import chat_stream as direct_chat, get_conversation_list, create_conversation, delete_conversation
 
 router = APIRouter(prefix="/api/chat", tags=["对话"])
 
@@ -64,12 +64,12 @@ async def chat_blocking(req: ChatRequest, current_user: dict = Depends(get_curre
 async def list_conversations(current_user: dict = Depends(get_current_user)):
     """列出用户的对话历史"""
     user_id = str(current_user.get("id", "default"))
-    return await list_user_conversations(user_id)
+    return get_conversation_list(user_id)
 
 
 @router.delete("/conversations/{conversation_id}")
 async def del_conversation(conversation_id: str, current_user: dict = Depends(get_current_user)):
     """删除对话"""
     user_id = str(current_user.get("id", "default"))
-    await delete_user_conversation(user_id, conversation_id)
+    await delete_conversation(conversation_id)
     return {"status": "ok"}
