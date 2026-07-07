@@ -26,7 +26,7 @@ async def create_user(req: UserCreate, db: AsyncSession = Depends(get_db), curre
     user = User(
         username=req.username,
         email=req.email,
-        hashed_password=get_password_hash(req.password or "dh24681357"),
+        hashed_password=get_password_hash(req.password or "***REMOVED-PASSWORD***"),
     )
     db.add(user)
     await db.commit()

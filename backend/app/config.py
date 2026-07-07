@@ -16,12 +16,12 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 DATABASE_URL = f"sqlite+aiosqlite:///{DATA_DIR}/csic.db"
 
 # JWT
-SECRET_KEY = os.getenv("SECRET_KEY", "csic-dh24681357-secret-key-change-in-production")
+SECRET_KEY = os.getenv("SECRET_KEY", "csic-***REMOVED-PASSWORD***-secret-key-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24小时
 
 # 默认密码（首次安装使用）
-DEFAULT_PASSWORD = os.getenv("DEFAULT_PASSWORD", "dh24681357")
+DEFAULT_PASSWORD = os.getenv("DEFAULT_PASSWORD", "***REMOVED-PASSWORD***")
 
 # CORS
 CORS_ORIGINS = [

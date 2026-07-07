@@ -20,7 +20,7 @@ def token(client):
     """登录获取 token"""
     resp = client.post("/api/auth/login", json={
         "username": "admin",
-        "password": "dh24681357"
+        "password": "***REMOVED-PASSWORD***"
     })
     assert resp.status_code == 200
     return resp.json()["access_token"]
@@ -44,7 +44,7 @@ class TestAuth:
     def test_login_success(self, client):
         resp = client.post("/api/auth/login", json={
             "username": "admin",
-            "password": "dh24681357"
+            "password": "***REMOVED-PASSWORD***"
         })
         assert resp.status_code == 200
         data = resp.json()
@@ -98,7 +98,7 @@ class TestUsers:
         resp = client.post("/api/users", headers=auth_headers, json={
             "username": uid,
             "email": f"{uid}@csic.cn",
-            "password": "dh24681357"
+            "password": "***REMOVED-PASSWORD***"
         })
         assert resp.status_code == 200
         assert resp.json()["message"] == "用户已创建"

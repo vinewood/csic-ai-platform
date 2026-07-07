@@ -19,7 +19,7 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     if not user or not verify_password(req.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="用户名或密码错误")
 
-    token = create_access_token({"sub": user.username, "id": user.id, "name": user.username})
+    token = create_access_token({"sub": user.username, "id": user.id, "name": user.username, "role": user.role})
     return TokenResponse(access_token=token, username=user.username)
 
 
@@ -32,7 +32,7 @@ async def register(req: UserCreate, db: AsyncSession = Depends(get_db)):
     user = User(
         username=req.username,
         email=req.email,
-        hashed_password=get_password_hash(req.password or "dh24681357"),
+        hashed_password=get_password_hash(req.password or "***REMOVED-PASSWORD***"),
         is_active=True,
     )
     db.add(user)

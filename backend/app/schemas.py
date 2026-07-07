@@ -25,7 +25,7 @@ class UserOut(BaseModel):
 class UserCreate(BaseModel):
     username: str
     email: str = ""
-    password: str = "dh24681357"
+    password: str = "***REMOVED-PASSWORD***"
 
 # ---- 对话 ----
 class ChatRequest(BaseModel):

@@ -43,7 +43,7 @@ async def seed_db():
         admin = User(
             username="admin",
             email="admin@csic.cn",
-            hashed_password=get_password_hash("dh24681357"),
+            hashed_password=get_password_hash("***REMOVED-PASSWORD***"),
             is_active=True,
         )
         session.add(admin)

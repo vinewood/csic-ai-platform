@@ -11,8 +11,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - SECRET_KEY=csic-dh24681357-secret-key-change-in-production
-      - DEFAULT_PASSWORD=dh24681357
+      - SECRET_KEY=csic-***REMOVED-PASSWORD***-secret-key-change-in-production
+      - DEFAULT_PASSWORD=***REMOVED-PASSWORD***
     volumes:
       - csic-data:/app/data
       - csic-uploads:/app/uploads

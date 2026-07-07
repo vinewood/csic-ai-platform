@@ -62,7 +62,7 @@ import { User, Lock, UserFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
-const form = reactive({ username: 'admin', password: 'dh24681357' })
+const form = reactive({ username: 'admin', password: '***REMOVED-PASSWORD***' })
 const loading = ref(false)
 const leftPanel = ref(null)
 
