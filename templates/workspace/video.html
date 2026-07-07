@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% set active_nav = 'video' %}
+{% block title %}视频分析 — 中船党校 AI助手{% endblock %}
+{% block vue_app %}
+{% raw %}
+<script>
+const { createApp, ref, onMounted } = Vue;
+const app = createApp({
+  setup() {
+    const tab = ref('upload'); const resultTab = ref('transcript');
+    const analyzing = ref(false); const videoResult = ref(null); const notes = ref('');
+    const startAnalysis = () => {
+      analyzing.value = true; tab.value = 'result';
+      setTimeout(() => {
+        videoResult.value = { transcript: '这是视频的完整转录内容...\n\n发言人1：大家好\n发言人2：今天我们讨论...', summary: 'AI摘要内容...', flashcards:[{q:'问题1',a:'答案1'}] };
+        analyzing.value = false;
+      }, 2000);
+    };
+    return { tab, resultTab, analyzing, videoResult, notes, startAnalysis };
+  },
+  template: `
+    <div style="padding:24px;max-width:1280px;margin:0 auto;">
+      <el-card shadow="never" style="margin-bottom:16px;">
+        <h2 style="margin:0;">视频分析</h2>
+      </el-card>
+      <el-tabs v-model="tab">
+        <el-tab-pane label="上传分析" name="upload">
+          <div style="border:2px dashed #dcdfe6;border-radius:8px;padding:40px;text-align:center;margin-bottom:16px;background:#fafafa;">
+            <i class="el-icon-upload" style="font-size:48px;color:#c0c4cc;"></i>
+            <p style="color:#909399;">点击或拖拽文件到此区域上传</p>
+          </div>
+          <el-input v-model="notes" type="textarea" :rows="3" placeholder="粘贴在线视频链接..." style="margin-bottom:12px;" />
+          <el-button type="primary" @click="startAnalysis" :loading="analyzing">开始分析</el-button>
+        </el-tab-pane>
+        <el-tab-pane label="分析结果" name="result" :disabled="!videoResult">
+          <el-tabs v-model="resultTab">
+            <el-tab-pane label="全文转录" name="transcript">
+              <pre style="white-space:pre-wrap;font-size:13px;">{{ videoResult?.transcript || '暂无数据' }}</pre>
+            </el-tab-pane>
+            <el-tab-pane label="AI摘要" name="summary"><p>{{ videoResult?.summary || '暂无数据' }}</p></el-tab-pane>
+            <el-tab-pane label="知识闪卡" name="flashcards">
+              <div v-for="(fc,i) in videoResult?.flashcards||[]" :key="i" style="margin-bottom:12px;padding:12px;background:#f5f7fa;border-radius:8px;">
+                <strong>{{ fc.q }}</strong><p style="margin:4px 0 0;">{{ fc.a }}</p>
+              </div>
+            </el-tab-pane>
+          </el-tabs>
+        </el-tab-pane>
+      </el-tabs>
+    </div>
+  `
+});
+app.use(ElementPlus); app.mount('#app-mount');
+document.getElementById('loading-splash')?.style.setProperty('display','none');
+</script>
+{% endraw %}
+{% endblock %}

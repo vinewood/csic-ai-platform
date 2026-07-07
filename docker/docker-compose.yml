@@ -1,0 +1,120 @@
+version: '3.8'
+
+services:
+  # ── Main App ──
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: csic-app
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=mysql+pymysql://csic:csic_pass@mysql:3306/csic_ai
+      - REDIS_URL=redis://redis:6379/0
+      - BAILIAN_API_KEY=${BAILIAN_API_KEY:-}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./uploads:/app/uploads
+      - ./templates:/app/templates
+      - ./static:/app/static
+    restart: unless-stopped
+
+  # ── Celery Worker ──
+  celery:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: csic-celery
+    command: celery -A app.tasks worker -l info -c 2
+    environment:
+      - DATABASE_URL=mysql+pymysql://csic:csic_pass@mysql:3306/csic_ai
+      - REDIS_URL=redis://redis:6379/0
+      - BAILIAN_API_KEY=${BAILIAN_API_KEY:-}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+    depends_on:
+      - redis
+      - mysql
+    restart: unless-stopped
+
+  # ── Celery Beat (scheduler) ──
+  celery-beat:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: csic-celery-beat
+    command: celery -A app.tasks beat -l info
+    environment:
+      - DATABASE_URL=mysql+pymysql://csic:csic_pass@mysql:3306/csic_ai
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+      - mysql
+    restart: unless-stopped
+
+  # ── MySQL ──
+  mysql:
+    image: mysql:8.0
+    container_name: csic-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root_pass_2026
+      MYSQL_DATABASE: csic_ai
+      MYSQL_USER: csic
+      MYSQL_PASSWORD: csic_pass
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Redis ──
+  redis:
+    image: redis:7-alpine
+    container_name: csic-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  # ── RSSHub ──
+  rsshub:
+    image: diygod/rsshub:latest
+    container_name: csic-rsshub
+    ports:
+      - "1200:1200"
+    environment:
+      NODE_ENV: production
+      CACHE_TYPE: redis
+      REDIS_URL: redis://redis:6379/1
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # ── Nginx (Reverse Proxy) ──
+  nginx:
+    image: nginx:alpine
+    container_name: csic-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  redis_data:

@@ -1,0 +1,198 @@
+"""
+LLM API 直连服务 —— 替代 Dify
+直接调用各家大模型 HTTP API，无需 Dify 容器
+"""
+
+import json
+import httpx
+from typing import AsyncGenerator, Optional
+from ..config import get_api_config
+
+
+# 模型 API 配置模板
+MODEL_ENDPOINTS = {
+    "qwen": {
+        "url": "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation",
+        "model": "qwen-max",
+        "auth_type": "bearer",  # Authorization: Bearer sk-xxx
+    },
+    "deepseek": {
+        "url": "https://api.deepseek.com/chat/completions",
+        "model": "deepseek-chat",
+        "auth_type": "bearer",
+    },
+    "zhipu": {
+        "url": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+        "model": "glm-4-flash",
+        "auth_type": "bearer",
+    },
+    "kimi": {
+        "url": "https://api.moonshot.cn/v1/chat/completions",
+        "model": "moonshot-v1-32k",
+        "auth_type": "bearer",
+    },
+    "minimax": {
+        "url": "https://api.minimax.chat/v1/text/chatcompletion_v2",
+        "model": "abab6.5s",
+        "auth_type": "bearer",
+    },
+    "doubao": {
+        "url": "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+        "model": "doubao-pro-32k",
+        "auth_type": "bearer",
+    },
+}
+
+# 聊天历史记录（内存中，重启丢失——生产应换 Redis）
+chat_histories: dict[str, list[dict]] = {}
+conversation_store: dict[str, dict] = {}
+conv_id_counter: int = 0
+
+
+async def chat_stream(
+    query: str,
+    model: str = "qwen",
+    conversation_id: str = "",
+    user_id: str = "default",
+    temperature: float = 0.7,
+    top_p: float = 0.9,
+    max_tokens: int = 2048,
+) -> AsyncGenerator[str, None]:
+    """直接调用 LLM API，SSE 流式返回"""
+    endpoint = MODEL_ENDPOINTS.get(model, MODEL_ENDPOINTS["qwen"])
+    api_key = get_api_config(model)
+
+    if not api_key:
+        yield f"\n\n[请先配置 {model} 的 API Key：系统管理 → API 配置 → {model}]"
+        return
+
+    # 构造消息
+    history = chat_histories.get(conversation_id or user_id, [])
+    messages = history + [{"role": "user", "content": query}]
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    # 各家模型请求体不同，分别构造
+    if model == "qwen":
+        payload = {
+            "model": endpoint["model"],
+            "input": {"messages": messages},
+            "parameters": {"temperature": temperature, "top_p": top_p, "max_tokens": max_tokens, "result_format": "message"},
+        }
+    elif model == "minimax":
+        payload = {
+            "model": endpoint["model"],
+            "messages": messages,
+            "temperature": temperature,
+            "top_p": top_p,
+            "tokens_to_generate": max_tokens,
+            "stream": True,
+        }
+    else:
+        # OpenAI 兼容格式（DeepSeek/智谱/Kimi/豆包）
+        payload = {
+            "model": endpoint["model"],
+            "messages": messages,
+            "temperature": temperature,
+            "top_p": top_p,
+            "max_tokens": max_tokens,
+            "stream": True,
+        }
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        try:
+            async with client.stream("POST", endpoint["url"], headers=headers, json=payload) as resp:
+                if resp.status_code != 200:
+                    error_text = await resp.aread()
+                    yield f"\n\n[API 错误 {resp.status_code}: {error_text.decode()[:200]}]"
+                    return
+
+                full_content = ""
+                async for line in resp.aiter_lines():
+                    if line.startswith("data: "):
+                        data_str = line[6:]
+                        if data_str == "[DONE]":
+                            break
+                        try:
+                            data = json.loads(data_str)
+
+                            # qwen 格式
+                            if model == "qwen":
+                                if data.get("output", {}).get("choices"):
+                                    delta = data["output"]["choices"][0]["message"]["content"]
+                                    if delta:
+                                        full_content += delta
+                                        yield delta
+
+                            # minimax 格式
+                            elif model == "minimax":
+                                if data.get("choices"):
+                                    delta = data["choices"][0].get("delta", {}).get("content", "")
+                                    if delta:
+                                        full_content += delta
+                                        yield delta
+
+                            # OpenAI 格式
+                            else:
+                                if data.get("choices"):
+                                    delta = data["choices"][0].get("delta", {}).get("content", "")
+                                    if delta:
+                                        full_content += delta
+                                        yield delta
+                        except json.JSONDecodeError:
+                            continue
+
+                # 保存到历史
+                cid = conversation_id or user_id
+                if cid not in chat_histories:
+                    chat_histories[cid] = []
+                chat_histories[cid].append({"role": "user", "content": query})
+                chat_histories[cid].append({"role": "assistant", "content": full_content})
+                # 只保留最近 20 轮
+                if len(chat_histories[cid]) > 40:
+                    chat_histories[cid] = chat_histories[cid][-40:]
+
+        except Exception as e:
+            yield f"\n\n[连接错误: {str(e)}]"
+
+
+def get_conversation_list(user_id: str) -> list[dict]:
+    """获取对话列表"""
+    result = []
+    for cid, conv in conversation_store.items():
+        if conv.get("user_id") == user_id:
+            result.append({
+                "id": cid,
+                "name": conv.get("name", "新对话"),
+                "model": conv.get("model", "qwen"),
+                "created_at": conv.get("created_at", ""),
+            })
+    return result
+
+
+def create_conversation(user_id: str, model: str, name: str = "新对话") -> str:
+    """创建新对话"""
+    global conv_id_counter
+    conv_id_counter += 1
+    cid = f"conv_{conv_id_counter}"
+    conversation_store[cid] = {
+        "id": cid,
+        "user_id": user_id,
+        "name": name,
+        "model": model,
+        "created_at": "",
+    }
+    return cid
+
+
+def delete_conversation(conv_id: str) -> bool:
+    """删除对话"""
+    if conv_id in conversation_store:
+        del conversation_store[conv_id]
+        if conv_id in chat_histories:
+            del chat_histories[conv_id]
+        return True
+    return False

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% set active_nav = 'teaching' %}
+{% block title %}教学工作台 — 中船党校 AI助手{% endblock %}
+{% block vue_app %}
+{% raw %}
+<script>
+const { createApp, ref, reactive, computed, onMounted } = Vue;
+const app = createApp({
+  setup() {
+    const courses = ref([]); const loading = ref(true); const search = ref(''); const filterType = ref('all'); const sortBy = ref('updatedAt');
+    onMounted(() => { if(window.MOCK) MOCK.list('courses').then(r => { courses.value=r.data; loading.value=false; }); });
+    const stats = computed(() => ({ total:courses.value.length, slides:courses.value.filter(c=>c.type==='slide').length, videos:courses.value.filter(c=>c.type==='video').length, cases:courses.value.filter(c=>c.type==='case').length }));
+    const filtered = computed(() => {
+      var list = courses.value.filter(c => (filterType.value==='all'||c.type===filterType.value) && (!search.value||c.name.includes(search.value)||(c.desc||'').includes(search.value)));
+      if(sortBy.value==='views') list.sort((a,b)=>(b.views||0)-(a.views||0));
+      else if(sortBy.value==='title') list.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+      else list.sort((a,b)=>((b.updatedAt||'')>(a.updatedAt||'')?1:-1));
+      return list;
+    });
+    return { courses,loading,search,filterType,sortBy,stats,filtered };
+  },
+  template:`
+    <div style="padding:24px;max-width:1280px;margin:0 auto;">
+      <el-card shadow="never" style="margin-bottom:24px;">
+        <h2 style="margin:0 0 4px;">教学工作台</h2>
+        <p style="color:#909399;font-size:13px;margin:0;">课程管理 · 课件制作 · AI辅助备课</p>
+      </el-card>
+      <div style="display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap;">
+        <el-card shadow="never" style="flex:1;min-width:140px;"><div style="font-size:28px;font-weight:700;color:#409eff;">{{ stats.total }}</div><div style="font-size:12px;color:#909399;">课程总数</div></el-card>
+        <el-card shadow="never" style="flex:1;min-width:140px;"><div style="font-size:28px;font-weight:700;color:#67c23a;">{{ stats.slides }}</div><div style="font-size:12px;color:#909399;">课件数</div></el-card>
+        <el-card shadow="never" style="flex:1;min-width:140px;"><div style="font-size:28px;font-weight:700;color:#e6a23c;">{{ stats.videos }}</div><div style="font-size:12px;color:#909399;">视频数</div></el-card>
+        <el-card shadow="never" style="flex:1;min-width:140px;"><div style="font-size:28px;font-weight:700;color:#909399;">{{ stats.cases }}</div><div style="font-size:12px;color:#909399;">案例数</div></el-card>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+        <el-input v-model="search" placeholder="搜索课程..." clearable style="width:240px;" />
+        <el-select v-model="filterType" style="width:120px;">
+          <el-option label="全部" value="all" /><el-option label="课程" value="course" /><el-option label="课件" value="slide" />
+          <el-option label="视频" value="video" /><el-option label="案例" value="case" />
+        </el-select>
+        <el-select v-model="sortBy" style="width:140px;">
+          <el-option label="最近更新" value="updatedAt" /><el-option label="最多浏览" value="views" /><el-option label="按名称" value="title" />
+        </el-select>
+      </div>
+      <el-row :gutter="16">
+        <el-col :xs="24" :sm="12" :lg="8" v-for="c in filtered" :key="c.id" style="margin-bottom:16px;">
+          <el-card shadow="hover">
+            <h3 style="margin:0 0 8px;font-size:16px;">{{ c.name }}</h3>
+            <p style="color:#909399;font-size:13px;margin:0 0 12px;">{{ c.desc }}</p>
+            <div style="display:flex;gap:12px;font-size:12px;color:#909399;">
+              <span>{{ c.slides||0 }} 课件</span><span>{{ c.views||0 }} 次浏览</span>
+              <el-button type="text" size="small">查看</el-button><el-button type="text" size="small">收藏</el-button>
+            </div>
+          </el-card>
+        </el-col>
+      </el-row>
+      <el-card v-if="loading" shadow="never" style="text-align:center;padding:40px;"><i class="el-icon-loading" style="font-size:24px;"></i><p>加载中...</p></el-card>
+    </div>
+  `
+});
+app.use(ElementPlus); app.mount('#app-mount');
+document.getElementById('loading-splash')?.style.setProperty('display','none');
+</script>
+{% endraw %}
+{% endblock %}

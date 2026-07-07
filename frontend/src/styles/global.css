@@ -1,0 +1,181 @@
+/* 中船党校 AI 平台 - 全局设计变量与工具类 */
+
+:root {
+  /* 品牌色 */
+  --csic-deep: #050d1a;
+  --csic-primary: #0a1628;
+  --csic-primary-light: #0f2347;
+  --csic-accent: #1a365d;
+  --csic-cyan: #22d3ee;
+  --csic-gold: #d4a843;
+  --csic-red: #c41e3a;
+
+  /* 功能色 */
+  --el-color-primary: #1677ff;
+  --el-color-primary-light-3: #4096ff;
+  --el-color-primary-light-5: #69b1ff;
+  --el-color-primary-light-7: #bae0ff;
+  --el-color-primary-light-9: #e6f4ff;
+
+  /* 中性色 */
+  --text-main: #1a1a2e;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  --border-color: #e5e7eb;
+  --bg-page: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-hover: #f3f4f6;
+
+  /* 阴影 */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-card-hover: 0 12px 24px -8px rgba(0, 0, 0, 0.1), 0 4px 8px -2px rgba(0, 0, 0, 0.05);
+
+  /* 圆角 */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  /* 动画 */
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 统一 page-hero 横幅样式 */
+.csic-hero {
+  position: relative;
+  padding: 36px 32px;
+  border-radius: var(--radius-lg);
+  color: #fff;
+  margin-bottom: 20px;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  box-shadow: var(--shadow-md);
+}
+
+.csic-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(5, 13, 26, 0.92) 0%, rgba(10, 22, 40, 0.88) 35%, rgba(15, 35, 71, 0.82) 70%, rgba(26, 54, 93, 0.78) 100%);
+  z-index: 0;
+}
+
+.csic-hero::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -10%;
+  width: 420px;
+  height: 420px;
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.12) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.csic-hero .hero-content {
+  position: relative;
+  z-index: 2;
+  text-align: left;
+}
+
+.csic-hero h2 {
+  margin: 0 0 10px;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.csic-hero p {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.82;
+  font-weight: 400;
+  letter-spacing: 0.3px;
+}
+
+/* 统一卡片样式 */
+.csic-card {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+  transition: box-shadow var(--transition-base), transform var(--transition-base);
+}
+
+.csic-card:hover {
+  box-shadow: var(--shadow-card-hover);
+}
+
+/* 统计卡片 */
+.csic-stat-card {
+  text-align: center;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+  transition: all var(--transition-base);
+}
+
+.csic-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card-hover);
+  border-color: var(--el-color-primary-light-7);
+}
+
+.csic-stat-card .stat-value {
+  font-size: 30px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #1677ff 0%, #0f85ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  line-height: 1.2;
+}
+
+.csic-stat-card .stat-label {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-top: 6px;
+  font-weight: 500;
+}
+
+/* 筛选工具栏 */
+.csic-filter-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  background: var(--bg-card);
+  padding: 14px 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-card);
+  align-items: center;
+}
+
+/* Element Plus 组件微调 */
+.el-button--primary {
+  background: linear-gradient(135deg, #1677ff 0%, #4096ff 100%);
+  border: none;
+  font-weight: 500;
+  transition: all var(--transition-base);
+}
+
+.el-button--primary:hover {
+  background: linear-gradient(135deg, #4096ff 0%, #1677ff 100%);
+  box-shadow: 0 4px 12px rgba(22, 119, 255, 0.35);
+  transform: translateY(-1px);
+}
+
+.el-radio-button__original-radio:checked + .el-radio-button__inner {
+  background: linear-gradient(135deg, #1677ff 0%, #4096ff 100%) !important;
+  border-color: #1677ff !important;
+  box-shadow: 0 2px 6px rgba(22, 119, 255, 0.25);
+}

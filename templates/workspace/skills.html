@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% set active_nav = 'skills' %}
+{% block title %}技能中心 — 中船党校 AI助手{% endblock %}
+{% block vue_app %}
+{% raw %}
+<script>
+const { createApp, ref, computed, onMounted } = Vue;
+const CATEGORIES = [{key:'all',label:'全部'},{key:'教学',label:'教学'},{key:'科研',label:'科研'},{key:'新闻',label:'新闻'},{key:'工具',label:'工具'}];
+const app = createApp({
+  setup() {
+    const skills = ref([]); const loading = ref(true); const search = ref(''); const category = ref('all');
+    const modalSkill = ref(null);
+    onMounted(() => { if(window.MOCK) MOCK.list('skills').then(r => { skills.value=r.data; loading.value=false; }); });
+    const filtered = computed(() => skills.value.filter(s => (category.value==='all'||s.category===category.value) && (!search.value||s.name.includes(search.value)||(s.desc||'').includes(search.value))));
+    const useSkill = (s) => { window.location.href = '/chat?skill=' + s.id; };
+    return { skills,loading,search,category,filtered,CATEGORIES,modalSkill,useSkill };
+  },
+  template:`
+    <div style="padding:24px;max-width:1280px;margin:0 auto;">
+      <el-card shadow="never" style="margin-bottom:16px;">
+        <h2 style="margin:0 0 4px;">AI 技能中心</h2>
+        <p style="color:#909399;font-size:13px;margin:0;">200+ AI 技能 · 自定义 Prompt · 评分收藏</p>
+      </el-card>
+      <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+        <el-input v-model="search" placeholder="搜索技能..." clearable style="width:240px;" />
+        <el-radio-group v-model="category">
+          <el-radio-button v-for="c in CATEGORIES" :key="c.key" :value="c.key">{{ c.label }}</el-radio-button>
+        </el-radio-group>
+      </div>
+      <el-row :gutter="16">
+        <el-col :xs="24" :sm="12" :md="8" v-for="s in filtered" :key="s.id" style="margin-bottom:16px;">
+          <el-card shadow="hover" @click="modalSkill=s" style="cursor:pointer;">
+            <h3 style="margin:0 0 8px;">{{ s.name }}</h3>
+            <p style="color:#909399;font-size:13px;margin:0 0 12px;">{{ s.desc }}</p>
+            <el-tag size="small">{{ s.category }}</el-tag>
+            <el-rate v-if="s.rating" v-model="s.rating" disabled size="small" style="display:inline-block;margin-left:8px;" />
+          </el-card>
+        </el-col>
+      </el-row>
+      <el-dialog v-model="!!modalSkill" :title="modalSkill?.name" width="480" :before-close="()=>modalSkill=null">
+        <template v-if="modalSkill">
+          <el-tag size="small">{{ modalSkill.category }}</el-tag>
+          <p>{{ modalSkill.desc }}</p>
+          <div style="background:#f5f7fa;border-radius:8px;padding:12px;margin:12px 0;">
+            <div style="font-size:12px;color:#909399;margin-bottom:4px;">System Prompt</div>
+            <pre style="margin:0;font-size:12px;white-space:pre-wrap;">{{ modalSkill.prompt }}</pre>
+          </div>
+          <p style="color:#909399;font-size:12px;">作者：{{ modalSkill.author }}</p>
+        </template>
+        <template #footer>
+          <el-button @click="modalSkill=null">取消</el-button>
+          <el-button type="primary" @click="useSkill(modalSkill)">开始对话</el-button>
+        </template>
+      </el-dialog>
+      <el-card v-if="loading" shadow="never" style="text-align:center;padding:40px;"><i class="el-icon-loading" style="font-size:24px;"></i><p>加载中...</p></el-card>
+    </div>
+  `
+});
+app.use(ElementPlus); app.mount('#app-mount');
+document.getElementById('loading-splash')?.style.setProperty('display','none');
+</script>
+{% endraw %}
+{% endblock %}

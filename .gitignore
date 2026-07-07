@@ -1,0 +1,20 @@
+node_modules/
+dist/
+.env
+*.pyc
+__pycache__/
+backend/data/
+backend/uploads/
+backend/venv/
+backend/.venv/
+.venv/
+*.db
+*.sqlite
+.DS_Store
+Thumbs.db
+venv/
+.idea/
+.vscode/
+*.log
+# 保留 workbuddy 配置
+.workbuddy/

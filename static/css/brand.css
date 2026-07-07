@@ -1,0 +1,3 @@
+/* CSIC AI Platform — 配合 Element Plus 默认蓝色主题 */
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: #f5f7fa; margin: 0; color: #303133; }
+#app-mount { min-height: calc(100vh - 56px); }

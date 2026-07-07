@@ -1,0 +1,53 @@
+version: "3.8"
+
+services:
+  # ===== FastAPI 后端（直连 LLM API，无需 Dify） =====
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: csic-backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - SECRET_KEY=csic-dh24681357-secret-key-change-in-production
+      - DEFAULT_PASSWORD=dh24681357
+    volumes:
+      - csic-data:/app/data
+      - csic-uploads:/app/uploads
+    networks:
+      - csic-net
+
+  # ===== RSSHub（可选） =====
+  rsshub:
+    image: diygod/rsshub:latest
+    container_name: csic-rsshub
+    restart: always
+    ports:
+      - "1200:1200"
+    networks:
+      - csic-net
+
+  # ===== Nginx（前端反向代理） =====
+  nginx:
+    image: nginx:alpine
+    container_name: csic-nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./www:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+    networks:
+      - csic-net
+
+volumes:
+  csic-data:
+  csic-uploads:
+
+networks:
+  csic-net:
+    driver: bridge

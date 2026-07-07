@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% set active_nav = 'knowledge' %}
+{% block title %}知识库 — 中船党校 AI助手{% endblock %}
+{% block vue_app %}
+{% raw %}
+<script>
+const { createApp, ref, onMounted } = Vue;
+const app = createApp({
+  setup() {
+    const kbs = ref([]); const selectedKb = ref(null);
+    onMounted(() => { if(window.MOCK) MOCK.list('knowledge').then(r => { kbs.value=r.data; if(r.data.length) selectedKb.value=r.data[0]; }); });
+    return { kbs, selectedKb };
+  },
+  template: `
+    <div style="padding:24px;max-width:1280px;margin:0 auto;display:flex;gap:16px;">
+      <div style="width:280px;flex-shrink:0;">
+        <el-card shadow="never">
+          <template #header><span style="font-weight:600;">知识库列表</span></template>
+          <div v-for="kb in kbs" :key="kb.id" @click="selectedKb=kb"
+            :style="{padding:'8px 12px',cursor:'pointer',borderRadius:6,marginBottom:4,background:selectedKb?.id===kb.id?'#ecf5ff':'transparent'}">
+            <div style="font-weight:500;">{{ kb.name }}</div>
+            <div style="font-size:12px;color:#909399;">{{ kb.type }} · {{ kb.docCount||0 }} 文档</div>
+          </div>
+        </el-card>
+      </div>
+      <div style="flex:1;">
+        <el-card v-if="selectedKb" shadow="never">
+          <template #header><span style="font-weight:600;">{{ selectedKb.name }}</span></template>
+          <p>知识库内容展示区域</p>
+        </el-card>
+        <el-card v-else shadow="never"><p style="text-align:center;color:#909399;">请选择一个知识库</p></el-card>
+      </div>
+    </div>
+  `
+});
+app.use(ElementPlus); app.mount('#app-mount');
+document.getElementById('loading-splash')?.style.setProperty('display','none');
+</script>
+{% endraw %}
+{% endblock %}

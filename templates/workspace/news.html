@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% set active_nav = 'news' %}
+{% block title %}信息导航台 — 中船党校 AI助手{% endblock %}
+{% block vue_app %}
+{% raw %}
+<script>
+const { createApp, ref, computed, onMounted } = Vue;
+const CATEGORIES = ['时政','党建','船舶','科技','经济'];
+const app = createApp({
+  setup() {
+    const articles = ref([]); const loading = ref(true); const category = ref('');
+    onMounted(() => { if(window.MOCK) MOCK.list('articles').then(r => { articles.value=r.data; loading.value=false; }); });
+    const filtered = computed(() => category.value ? articles.value.filter(a=>a.category===category.value) : articles.value);
+    return { articles,loading,category,CATEGORIES,filtered };
+  },
+  template:`
+    <div style="padding:24px;max-width:1280px;margin:0 auto;">
+      <el-card shadow="never" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <h2 style="margin:0;">信息导航台</h2>
+          <el-button type="primary" size="small">订阅管理</el-button>
+        </div>
+      </el-card>
+      <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+        <el-button :type="!category?'primary':''" size="small" @click="category=''">全部</el-button>
+        <el-button v-for="c in CATEGORIES" :key="c" :type="category===c?'primary':''" size="small" @click="category=c">{{ c }}</el-button>
+      </div>
+      <el-table :data="filtered" stripe v-loading="loading">
+        <el-table-column prop="title" label="标题" min-width="300" />
+        <el-table-column prop="source" label="来源" width="150" />
+        <el-table-column prop="category" label="分类" width="100">
+          <template #default="{row}"><el-tag size="small">{{ row.category }}</el-tag></template>
+        </el-table-column>
+        <el-table-column prop="publishedAt" label="时间" width="160" />
+      </el-table>
+    </div>
+  `
+});
+app.use(ElementPlus); app.mount('#app-mount');
+document.getElementById('loading-splash')?.style.setProperty('display','none');
+</script>
+{% endraw %}
+{% endblock %}

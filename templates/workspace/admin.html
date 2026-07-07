@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% set active_nav = 'admin' %}
+{% block title %}系统管理 — 中船党校 AI助手{% endblock %}
+{% block vue_app %}
+{% raw %}
+<script>
+const { createApp, ref, reactive, onMounted } = Vue;
+const app = createApp({
+  setup() {
+    const tab = ref('users'); const users = ref([]); const models = ref([]); const usage = ref([]); const sources = ref([]);
+    const modalVisible = ref(false); const modalTitle = ref(''); const editForm = reactive({endpoint:'',key:'',enabled:true});
+    onMounted(() => {
+      if(!window.MOCK) return;
+      MOCK.list('users').then(r=>users.value=r.data);
+      MOCK.list('models').then(r=>models.value=r.data);
+      MOCK.list('usage').then(r=>usage.value=r.data);
+      MOCK.list('sources').then(r=>sources.value=r.data);
+    });
+    const showModal = (title) => { modalTitle.value=title; modalVisible.value=true; };
+    const saveModal = () => { ElMessage.success('配置已保存'); modalVisible.value=false; };
+    return { tab,users,models,usage,sources,modalVisible,modalTitle,editForm,showModal,saveModal };
+  },
+  template:`
+    <div style="padding:24px;max-width:1280px;margin:0 auto;">
+      <el-card shadow="never" style="margin-bottom:16px;"><h2 style="margin:0;">系统管理</h2></el-card>
+      <el-card shadow="never">
+        <el-tabs v-model="tab">
+          <el-tab-pane label="用户管理" name="users">
+            <div style="margin-bottom:12px;"><el-button type="primary" @click="showModal('添加用户')">添加用户</el-button></div>
+            <el-table :data="users" stripe>
+              <el-table-column prop="name" label="姓名" /><el-table-column prop="role" label="角色" />
+              <el-table-column prop="email" label="邮箱" />
+              <el-table-column label="状态"><template #default="{row}"><el-tag :type="row.status==='active'?'success':'danger'">{{ row.status==='active'?'活跃':'停用' }}</el-tag></template></el-table-column>
+            </el-table>
+          </el-tab-pane>
+          <el-tab-pane label="模型配置" name="models">
+            <el-table :data="models" stripe>
+              <el-table-column prop="name" label="模型" /><el-table-column prop="provider" label="提供商" />
+              <el-table-column label="状态"><template #default="{row}"><el-tag :type="row.status==='active'?'success':'info'">{{ row.status==='active'?'启用':'停用' }}</el-tag></template></el-table-column>
+              <el-table-column label="操作"><template #default="{row}"><el-button type="text" @click="showModal('配置 '+row.name)">配置</el-button></template></el-table-column>
+            </el-table>
+          </el-tab-pane>
+          <el-tab-pane label="用量统计" name="usage">
+            <el-table :data="usage" stripe>
+              <el-table-column prop="date" label="日期" /><el-table-column prop="calls" label="调用次数" /><el-table-column prop="tokens" label="Token 数" />
+            </el-table>
+          </el-tab-pane>
+          <el-tab-pane label="新闻源" name="sources">
+            <div style="margin-bottom:12px;"><el-button type="primary" @click="showModal('添加新闻源')">添加源</el-button></div>
+            <el-table :data="sources" stripe>
+              <el-table-column prop="name" label="名称" /><el-table-column prop="url" label="URL" /><el-table-column prop="category" label="分类" />
+              <el-table-column label="状态"><template #default="{row}"><el-switch v-model="row.active" /></template></el-table-column>
+            </el-table>
+          </el-tab-pane>
+        </el-tabs>
+      </el-card>
+      <el-dialog v-model="modalVisible" :title="modalTitle" width="480">
+        <el-form :model="editForm" label-position="top">
+          <el-form-item label="API Endpoint"><el-input v-model="editForm.endpoint" placeholder="https://api.example.com/v1" /></el-form-item>
+          <el-form-item label="API Key"><el-input v-model="editForm.key" type="password" placeholder="sk-xxxxxxxxxxxx" /></el-form-item>
+          <el-form-item label="启用"><el-switch v-model="editForm.enabled" /></el-form-item>
+        </el-form>
+        <template #footer><el-button @click="modalVisible=false">取消</el-button><el-button type="primary" @click="saveModal">保存</el-button></template>
+      </el-dialog>
+    </div>
+  `
+});
+app.use(ElementPlus); app.mount('#app-mount');
+document.getElementById('loading-splash')?.style.setProperty('display','none');
+</script>
+{% endraw %}
+{% endblock %}

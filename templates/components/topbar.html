@@ -1,0 +1,39 @@
+{# ── Topbar Vue — 配合 Element Plus 浅色主题 ── #}
+<header style="display:flex;align-items:center;height:56px;padding:0 24px;background:#fff;border-bottom:1px solid #e4e7ed;position:relative;z-index:10;">
+    <div id="topbar-particles" style="position:absolute;inset:0;pointer-events:none;"></div>
+    <a href="/" style="display:flex;align-items:center;gap:10px;text-decoration:none;z-index:2;">
+        <el-image src="/static/img/logo-en.png" style="width:110px;height:32px;" />
+        <div>
+            <div style="font-size:15px;font-weight:700;color:#303133;">AI助手</div>
+            <div style="font-size:10px;color:#909399;">CSSC Party School</div>
+        </div>
+    </a>
+    <nav style="display:flex;align-items:center;gap:4px;margin:0 auto;z-index:2;">
+        <a href="/chat" class="topbar-link {{ 'active' if active_nav == 'chat' else '' }}"><i class="el-icon-chat-dot-round"></i> AI 对话</a>
+        <a href="/workspace/teaching" class="topbar-link {{ 'active' if active_nav == 'teaching' else '' }}"><i class="el-icon-reading"></i> 教学工作台</a>
+        <a href="/workspace/research" class="topbar-link {{ 'active' if active_nav == 'research' else '' }}"><i class="el-icon-microscope"></i> 科研工作台</a>
+        <a href="/workspace/news" class="topbar-link {{ 'active' if active_nav == 'news' else '' }}"><i class="el-icon-news"></i> 信息导航台</a>
+        <a href="/workspace/skills" class="topbar-link {{ 'active' if active_nav == 'skills' else '' }}"><i class="el-icon-collection-tag"></i> 技能中心</a>
+        <a href="/workspace/knowledge" class="topbar-link {{ 'active' if active_nav == 'knowledge' else '' }}"><i class="el-icon-notebook-2"></i> 知识库</a>
+        <a href="/workspace/video" class="topbar-link {{ 'active' if active_nav == 'video' else '' }}"><i class="el-icon-video-camera"></i> 视频分析</a>
+        <a href="/workspace/admin" class="topbar-link {{ 'active' if active_nav == 'admin' else '' }}"><i class="el-icon-setting"></i> 系统管理</a>
+    </nav>
+    <div style="display:flex;align-items:center;gap:8px;z-index:2;">
+        <span style="font-size:13px;color:#606266;">{{ user.display_name if user else '张讲师' }}</span>
+        <el-avatar :size="30">{{ (user.display_name if user else '张')[:1] }}</el-avatar>
+    </div>
+</header>
+<style>
+.topbar-link { display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:6px;font-size:13px;color:#606266;text-decoration:none;transition:all 0.2s;white-space:nowrap; }
+.topbar-link:hover { background:#f0f5ff;color:#409eff; }
+.topbar-link.active { background:#ecf5ff;color:#409eff;font-weight:500; }
+</style>
+<script>
+(function(){
+  var el=document.getElementById('topbar-particles');
+  if(el&&window.OceanParticles){
+    el.dataset.inited='1';
+    try{new OceanParticles(el,{count:20,speedMin:0.15,speedMax:0.5,opacityMin:0.08,opacityMax:0.3,sizeMin:1,sizeMax:2.5,flowDirection:'right',zIndex:0,colors:['rgba(64,158,255,{o})','rgba(102,177,255,{o})','rgba(179,216,255,{o})']});}catch(e){}
+  }else if(el&&!el.dataset.inited){el.dataset.inited='1';setTimeout(arguments.callee,200);}
+})();
+</script>

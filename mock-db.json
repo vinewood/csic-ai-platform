@@ -1,0 +1,75 @@
+{
+  "users": [
+    { "id": "u1", "name": "张讲师", "username": "zhangjs", "role": "讲师", "dept": "党建教研部", "avatar": "张", "email": "zhang@csic.cn", "defaultWs": "teaching", "active": true },
+    { "id": "u2", "name": "李研究员", "username": "liyj", "role": "研究员", "dept": "船舶研究所", "avatar": "李", "defaultWs": "research", "active": true },
+    { "id": "u3", "name": "王局长", "username": "wangld", "role": "领导", "dept": "校领导", "avatar": "王", "defaultWs": "news", "active": true },
+    { "id": "u4", "name": "赵管理", "username": "admin", "role": "管理员", "dept": "信息中心", "avatar": "赵", "defaultWs": "admin", "active": true }
+  ],
+  "courses": [
+    { "id": "c1", "title": "习近平新时代中国特色社会主义思想解读", "category": "course", "desc": "系统讲解新时代党的指导思想核心要义", "slides": 12, "status": "published", "views": 342, "author": "张讲师" },
+    { "id": "c2", "title": "国有企业改革与党建创新", "category": "course", "desc": "国有企业党建工作实践与制度创新", "slides": 8, "status": "published", "views": 218, "author": "陈教授" },
+    { "id": "c3", "title": "船舶工业发展史", "category": "slide", "desc": "从江南造船厂到三大造船基地", "slides": 15, "status": "published", "views": 156, "author": "张讲师" },
+    { "id": "c4", "title": "党的二十大精神学习辅导", "category": "video", "desc": "党的二十大精神核心内容视频课程", "slides": 6, "status": "published", "views": 489, "author": "王局长" },
+    { "id": "c5", "title": "领导力与团队管理", "category": "course", "desc": "企业中高层管理能力提升课程", "slides": 10, "status": "draft", "views": 0, "author": "陈教授" },
+    { "id": "c6", "title": "大国重器：中国船舶集团创新之路", "category": "video", "desc": "CSSC科技创新成果纪录片", "slides": 4, "status": "published", "views": 267, "author": "张讲师" },
+    { "id": "c7", "title": "国企党建案例汇编", "category": "case", "desc": "全国国企党建优秀案例精选", "slides": 20, "status": "published", "views": 134, "author": "李研究员" },
+    { "id": "c8", "title": "国际战略形势与国家安全", "category": "course", "desc": "当前国际局势分析与国家安全战略", "slides": 9, "status": "published", "views": 198, "author": "王局长" },
+    { "id": "c9", "title": "党纪学习教育专题", "category": "course", "desc": "新修订纪律处分条例解读与案例警示", "slides": 14, "status": "published", "views": 376, "author": "陈教授" }
+  ],
+  "projects": [
+    { "id": "p1", "name": "船舶工业数字化转型研究", "desc": "研究数字孪生、AI在船舶设计建造中的应用", "status": "进行中", "members": 3, "papers": 2 },
+    { "id": "p2", "name": "国企党建与公司治理融合研究", "desc": "实证研究党组织嵌入公司治理的机制与效果", "status": "进行中", "members": 5, "papers": 1 },
+    { "id": "p3", "name": "AI辅助课程开发研究", "desc": "探索大模型在党校课程开发中的应用方法", "status": "立项", "members": 2, "papers": 0 }
+  ],
+  "skills": [
+    { "id": "sk1", "name": "课程大纲生成", "category": "教学", "desc": "AI自动生成结构化课程大纲", "usage": 128, "rating": 4.8, "author": "张讲师", "shared": true },
+    { "id": "sk2", "name": "论文选题分析", "category": "科研", "desc": "基于研究热点推荐论文选题方向", "usage": 95, "rating": 4.6, "author": "李研究员", "shared": true },
+    { "id": "sk3", "name": "文献摘要生成", "category": "科研", "desc": "快速提取论文核心观点生成学术摘要", "usage": 213, "rating": 4.9, "author": "李研究员", "shared": true },
+    { "id": "sk4", "name": "新闻摘要日报", "category": "新闻", "desc": "聚合当日新闻生成分类摘要", "usage": 342, "rating": 4.7, "author": "赵管理", "shared": true },
+    { "id": "sk5", "name": "视频内容提炼", "category": "工具", "desc": "从视频转录文本中提取关键信息", "usage": 67, "rating": 4.4, "author": "赵管理", "shared": true },
+    { "id": "sk6", "name": "报告润色校对", "category": "科研", "desc": "对学术报告进行语法检查和学术润色", "usage": 189, "rating": 4.8, "author": "陈教授", "shared": true },
+    { "id": "sk7", "name": "会议纪要整理", "category": "工具", "desc": "将会议录音整理为结构化纪要", "usage": 156, "rating": 4.6, "author": "王局长", "shared": true },
+    { "id": "sk8", "name": "PPT内容生成", "category": "教学", "desc": "根据讲义内容生成PPT大纲", "usage": 112, "rating": 4.4, "author": "张讲师", "shared": true }
+  ],
+  "videos": [
+    { "id": "v1", "name": "党的二十大精神专题辅导报告.mp4", "status": "completed", "duration": "01:25:30", "size": "1.2GB", "progress": 100 },
+    { "id": "v2", "name": "国企党建工作经验交流会.mov", "status": "completed", "duration": "02:10:00", "size": "2.8GB", "progress": 100 },
+    { "id": "v3", "name": "船舶智能制造技术讲座.mp4", "status": "processing", "duration": "00:45:00", "size": "680MB", "progress": 62 }
+  ],
+  "rssSources": [
+    { "id": "s1", "name": "新华网", "route": "xinhua/news", "category": "时政", "interval": 30, "active": true },
+    { "id": "s2", "name": "人民网", "route": "people/news", "category": "时政", "interval": 30, "active": true },
+    { "id": "s3", "name": "求是网", "route": "qstheory/news", "category": "党建", "interval": 60, "active": true },
+    { "id": "s4", "name": "中国船舶报", "route": "csic/news", "category": "船舶", "interval": 60, "active": true },
+    { "id": "s5", "name": "科技日报", "route": "stdaily/news", "category": "科技", "interval": 120, "active": true },
+    { "id": "s6", "name": "经济日报", "route": "ce/news", "category": "经济", "interval": 120, "active": true }
+  ],
+  "news": [
+    { "id": "n1", "sourceId": "s1", "title": "习近平：进一步全面深化改革 推进中国式现代化", "category": "时政", "summary": "习近平总书记主持会议并发表重要讲话...", "publishedAt": "2026-07-04", "hot": true },
+    { "id": "n2", "sourceId": "s2", "title": "全国国有企业党的建设工作会议精神落实取得新成效", "category": "党建", "summary": "各中央企业持续深化国有企业党的建设...", "publishedAt": "2026-07-04", "hot": true },
+    { "id": "n3", "sourceId": "s3", "title": "新时代国有企业党建与业务融合的创新路径", "category": "党建", "summary": "新时代国企党建需要从制度、机制、文化等多维度推动...", "publishedAt": "2026-07-04", "hot": false },
+    { "id": "n4", "sourceId": "s4", "title": "中国船舶集团一季度造船完工量同比增长15%", "category": "船舶", "summary": "造船完工量同比增长15%，新接订单量同比增长22%...", "publishedAt": "2026-07-04", "hot": true },
+    { "id": "n5", "sourceId": "s5", "title": "AI大模型在工业制造领域的应用突破", "category": "科技", "summary": "工业制造领域正迎来新一轮智能化变革...", "publishedAt": "2026-07-04", "hot": false },
+    { "id": "n6", "sourceId": "s6", "title": "我国船舶工业进出口贸易保持增长态势", "category": "经济", "summary": "海关总署最新数据显示进出口贸易持续增长...", "publishedAt": "2026-07-04", "hot": false },
+    { "id": "n7", "sourceId": "s1", "title": "中央企业数字化转型取得阶段性成果", "category": "时政", "summary": "国务院国资委通报央企数字化转型进展...", "publishedAt": "2026-07-03", "hot": false },
+    { "id": "n8", "sourceId": "s2", "title": "推动党纪学习教育走深走实", "category": "党建", "summary": "各地扎实推进党纪学习教育...", "publishedAt": "2026-07-03", "hot": false },
+    { "id": "n9", "sourceId": "s4", "title": "国产首艘大型邮轮开启新航季", "category": "船舶", "summary": "我国首艘国产大型邮轮正式开启2026年夏季运营航季...", "publishedAt": "2026-07-03", "hot": true },
+    { "id": "n10", "sourceId": "s5", "title": "6G通信技术研发取得关键进展", "category": "科技", "summary": "6G技术研发团队在太赫兹通信领域取得突破性进展...", "publishedAt": "2026-07-03", "hot": false },
+    { "id": "n11", "sourceId": "s6", "title": "2026年上半年国民经济运行稳中有进", "category": "经济", "summary": "国家统计局发布上半年国民经济运行数据...", "publishedAt": "2026-07-03", "hot": true },
+    { "id": "n12", "sourceId": "s1", "title": "共建一带一路取得新成果", "category": "时政", "summary": "一带一路合作在基础设施、贸易投资等领域合作不断深化...", "publishedAt": "2026-07-03", "hot": false }
+  ],
+  "knowledgeBases": [
+    { "id": "kb1", "name": "党的二十大精神学习资料", "type": "个人", "owner": "张讲师", "docs": 12, "shared": false },
+    { "id": "kb2", "name": "国企党建政策文件库", "type": "个人", "owner": "李研究员", "docs": 25, "shared": true },
+    { "id": "kb3", "name": "船舶行业报告汇编", "type": "组织", "owner": "信息中心", "docs": 48, "shared": true },
+    { "id": "kb4", "name": "党校精品课程资料", "type": "组织", "owner": "教务部", "docs": 36, "shared": true },
+    { "id": "kb5", "name": "AI技术学习笔记", "type": "个人", "owner": "赵管理", "docs": 8, "shared": false }
+  ],
+  "documents": [
+    { "id": "doc1", "kbId": "kb1", "name": "二十大报告全文.pdf", "type": "pdf", "size": "2.3MB", "indexed": true },
+    { "id": "doc2", "kbId": "kb1", "name": "二十大精神学习要点.docx", "type": "docx", "size": "1.1MB", "indexed": true },
+    { "id": "doc3", "kbId": "kb2", "name": "国企基层组织工作条例.pdf", "type": "pdf", "size": "1.5MB", "indexed": true },
+    { "id": "doc4", "kbId": "kb3", "name": "2026船舶工业发展白皮书.pdf", "type": "pdf", "size": "5.2MB", "indexed": true },
+    { "id": "doc5", "kbId": "kb5", "name": "LangChain入门指南.pdf", "type": "pdf", "size": "2.1MB", "indexed": true }
+  ]
+}

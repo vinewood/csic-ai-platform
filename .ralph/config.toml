@@ -1,0 +1,12 @@
+adapter = "opencode"
+maxIterations = 30
+plansDir = ".plans"
+debug = false
+tui = false
+yolo = true
+transportLog = false
+
+[hooks]
+ralph_start = ""
+ralph_loop_end = ""
+ralph_complete = "echo 'Ralph loop complete!'"

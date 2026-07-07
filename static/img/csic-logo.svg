@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Outer ring -->
+  <circle cx="100" cy="100" r="95" stroke="url(#navyGrad)" stroke-width="3" opacity="0.4"/>
+  <circle cx="100" cy="100" r="85" stroke="url(#navyGrad)" stroke-width="1" opacity="0.2"/>
+
+  <!-- Ship hull - stylized -->  
+  <path d="M30 140 L60 120 L140 120 L170 140 L150 145 L50 145 Z" 
+        fill="url(#navyGrad)" opacity="0.9"/>
+  <path d="M55 122 L60 110 L140 110 L145 122" 
+        fill="url(#cyanGrad)" opacity="0.4"/>
+
+  <!-- Mast / central structure -->
+  <line x1="100" y1="40" x2="100" y2="120" stroke="url(#navyGrad)" stroke-width="4" stroke-linecap="round"/>
+  
+  <!-- Sail / flag -->
+  <path d="M100 50 L135 70 L100 90" fill="url(#redGrad)" opacity="0.85"/>
+  
+  <!-- Waves -->
+  <path d="M25 145 Q40 138 55 145 Q70 152 85 145 Q100 138 115 145 Q130 152 145 145 Q160 138 175 145" 
+        stroke="url(#navyGrad)" stroke-width="2" fill="none" opacity="0.5"/>
+  <path d="M30 152 Q45 145 60 152 Q75 159 90 152 Q105 145 120 152 Q135 159 150 152 Q165 145 180 152" 
+        stroke="url(#navyGrad)" stroke-width="1.5" fill="none" opacity="0.3"/>
+  
+  <!-- Star (party emblem) -->
+  <polygon points="100,20 103,30 114,30 105,36 108,46 100,40 92,46 95,36 86,30 97,30" 
+           fill="url(#goldGrad)" opacity="0.9"/>
+
+  <!-- Gradients -->
+  <defs>
+    <linearGradient id="navyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1B3770"/>
+      <stop offset="100%" stop-color="#0A1A33"/>
+    </linearGradient>
+    <linearGradient id="cyanGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0891B2"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+    <linearGradient id="redGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#C41E3A"/>
+      <stop offset="100%" stop-color="#D4344D"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E8C56D"/>
+      <stop offset="100%" stop-color="#D4A843"/>
+    </linearGradient>
+  </defs>
+</svg>

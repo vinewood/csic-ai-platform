@@ -1,0 +1,30 @@
+{
+  "name": "csic-ai-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "中船党校 AI 智能业务平台 — 前端完整交互演示",
+  "scripts": {
+    "mock": "npx json-server --watch mock-db.json --port 3001",
+    "dev": "python.exe -m uvicorn main:app --host 127.0.0.1 --port 8765 --reload",
+    "test": "npx playwright test",
+    "start": "concurrently \"npm run mock\" \"npm run dev\""
+  },
+  "dependencies": {
+    "@babel/standalone": "^8.0.3",
+    "concurrently": "^8.2.2",
+    "json-server": "^0.17.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.45.0",
+    "@wiggumdev/ralph": "^0.1.14",
+    "@wiggumdev/ralph-windows-x64": "^0.1.14",
+    "cowsay": "^1.6.0"
+  },
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

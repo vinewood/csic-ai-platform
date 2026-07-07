@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% set show_topbar = false %}
+{% block title %}中船党校 — AI助手{% endblock %}
+{% block vue_app %}
+{% raw %}
+<script>
+const { createApp, ref, reactive } = Vue;
+const QUICK_LINKS = [
+  {key:'teaching',label:'教学工作台',primary:true},{key:'research',label:'科研工作台'},
+  {key:'news',label:'信息导航台'},{key:'skills',label:'技能中心'},
+  {key:'video',label:'视频分析'},{key:'knowledge',label:'知识库'}
+];
+const FEATURES = [
+  {title:'教学工作台',desc:'课程管理·课件制作·AI辅助备课'},{title:'科研工作台',desc:'选题分析·文献检索·论文润色'},
+  {title:'信息导航台',desc:'RSS订阅·AI摘要·日报生成'},{title:'技能中心',desc:'200+AI技能·自定义Prompt'},
+  {title:'视频分析',desc:'AI转录·摘要·思维导图'},{title:'知识库',desc:'个人文档·组织共享·RAG问答'}
+];
+const app = createApp({
+  setup() {
+    const form = reactive({role:'teacher',username:'',password:''});
+    const loading = ref(false);
+    const roleMap = {teacher:'/workspace/teaching',researcher:'/workspace/research',rss:'/workspace/news',admin:'/workspace/admin'};
+    const handleLogin = () => {loading.value=true;setTimeout(()=>{window.location.href=roleMap[form.role]||'/chat';},500);};
+    const quickLogin = (role) => {window.location.href=roleMap[role]||'/chat';};
+    return {form,loading,handleLogin,quickLogin,QUICK_LINKS,FEATURES};
+  },
+  template: `
+    <div>
+      <section style="min-height:100vh;background:linear-gradient(160deg,#0A1628 0%,#0F2347 40%,#0A1628 100%);display:flex;align-items:center;position:relative;">
+        <div style="position:absolute;inset:0;background:url(/static/img/ship-bg.jpg) center/cover no-repeat;opacity:0.12;"></div>
+        <div style="max-width:1200px;margin:0 auto;padding:40px 32px;width:100%;position:relative;z-index:1;">
+          <div style="display:flex;align-items:center;gap:60px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:300px;">
+              <el-image src="/static/img/logo.png" style="height:48px;margin-bottom:20px;" />
+              <h1 style="font-size:2.8em;font-weight:800;color:#fff;margin:0 0 8px;line-height:1.2;">
+                <span style="background:linear-gradient(135deg,#22D3EE,#D4A843);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">AI助手</span>
+              </h1>
+              <h2 style="color:rgba(255,255,255,0.7);font-size:1.4em;font-weight:400;margin:0 0 12px;">中国船舶集团党校</h2>
+              <p style="color:rgba(255,255,255,0.45);font-size:14px;line-height:1.6;margin-bottom:24px;">六模型并行对比 · 科研教学一体化 · 知识库组织沉淀</p>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <template v-for="item in QUICK_LINKS" :key="item.key">
+                  <el-button :type="item.primary?'primary':''" round @click="quickLogin(item.key)" style="backdrop-filter:blur(4px);">{{ item.label }}</el-button>
+                </template>
+              </div>
+            </div>
+            <div style="width:380px;">
+              <el-card shadow="always" style="border-radius:16px;">
+                <h3 style="text-align:center;margin:0 0 4px;font-weight:700;">欢迎使用</h3>
+                <p style="text-align:center;color:#999;font-size:13px;margin:0 0 20px;">选择身份，开始智能体验</p>
+                <el-form :model="form" label-position="top" @submit.prevent="handleLogin">
+                  <el-form-item label="选择身份">
+                    <el-radio-group v-model="form.role" style="display:flex;gap:8px;flex-wrap:wrap;">
+                      <el-radio-button value="teacher">讲师</el-radio-button>
+                      <el-radio-button value="researcher">研究员</el-radio-button>
+                      <el-radio-button value="rss">RSS订阅</el-radio-button>
+                      <el-radio-button value="admin">管理员</el-radio-button>
+                    </el-radio-group>
+                  </el-form-item>
+                  <el-form-item label="账号"><el-input v-model="form.username" placeholder="任意输入" /></el-form-item>
+                  <el-form-item label="密码"><el-input v-model="form.password" type="password" show-password placeholder="任意输入" /></el-form-item>
+                  <el-form-item><el-button type="primary" native-type="submit" :loading="loading" style="width:100%;height:44px;font-size:16px;font-weight:700;border-radius:10px;">登 录</el-button></el-form-item>
+                </el-form>
+                <p style="text-align:center;color:#ccc;font-size:11px;margin:0;">演示环境 · 选择身份直接登录</p>
+              </el-card>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section style="padding:80px 32px;background:linear-gradient(180deg,#0A1628,#0F2347);">
+        <div style="max-width:1200px;margin:0 auto;text-align:center;">
+          <h2 style="color:#fff;font-weight:800;margin:0 0 48px;font-size:28px;">六大智能模块</h2>
+          <el-row :gutter="24">
+            <el-col :xs="24" :sm="12" :md="8" v-for="f in FEATURES" :key="f.title" style="margin-bottom:24px;">
+              <el-card shadow="hover" :body-style="{padding:'28px 24px',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.06)',borderRadius:'16px',color:'#fff'}">
+                <h3 style="font-size:17px;font-weight:700;margin:0 0 8px;">{{ f.title }}</h3>
+                <p style="font-size:13px;color:rgba(255,255,255,0.55);margin:0;">{{ f.desc }}</p>
+              </el-card>
+            </el-col>
+          </el-row>
+        </div>
+      </section>
+      <footer style="padding:48px 32px;background:#0A1628;">
+        <div style="max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+          <span style="color:rgba(255,255,255,0.35);font-size:13px;">中国船舶集团党校 © 2026 AI助手</span>
+          <el-space :size="24">
+            <a href="#" style="color:rgba(255,255,255,0.35);font-size:13px;">帮助文档</a>
+            <a href="#" style="color:rgba(255,255,255,0.35);font-size:13px;">使用协议</a>
+            <a href="#" style="color:rgba(255,255,255,0.35);font-size:13px;">联系我们</a>
+          </el-space>
+        </div>
+      </footer>
+    </div>
+  `
+});
+app.use(ElementPlus); app.mount('#app-mount');
+document.getElementById('loading-splash')?.style.setProperty('display','none');
+</script>
+{% endraw %}
+{% endblock %}
