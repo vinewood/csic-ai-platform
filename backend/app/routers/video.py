@@ -13,6 +13,7 @@ from ..models import User, VideoTask
 from ..schemas import MessageResponse
 from ..auth import get_current_user
 from ..config import UPLOAD_DIR
+from ..services.integrations import ASRService, DifyService
 
 router = APIRouter(prefix="/api/video", tags=["视频"])
 
@@ -72,9 +73,8 @@ async def upload_video(
     await db.commit()
     await db.refresh(task)
 
-    # Simulate 3-second processing
-    task_id = task.id
-    asyncio.create_task(_simulate_processing(task_id, db))
+    # 后台处理视频
+    asyncio.create_task(_process_video(task.id, str(save_path)))
 
     return {
         "id": task.id,
@@ -86,11 +86,8 @@ async def upload_video(
     }
 
 
-async def _simulate_processing(task_id: int, db: AsyncSession):
-    """Simulate video processing: wait 3 seconds, then update with mock results."""
-    await asyncio.sleep(3)
-
-    # Get a fresh session for the background task
+async def _process_video(task_id: int, filepath: str):
+    """真实视频处理：ASR 转写 → Dify AI 摘要 + 闪卡"""
     from ..database import async_session as _async_session
 
     async with _async_session() as session:
@@ -99,58 +96,46 @@ async def _simulate_processing(task_id: int, db: AsyncSession):
         if not task:
             return
 
+        # Step 1: ASR 语音转文字
+        asr_result = await ASRService.transcribe_file(filepath)
+        transcript = asr_result.get("text", "转写失败: " + asr_result.get("message", "未知错误"))
+
+        # Step 2: Dify AI 生成摘要
+        summary = "AI 摘要生成中..."
+        try:
+            dify_summary = await DifyService.chat_blocking(
+                query=f"请用200字中文概括以下视频转写内容：\n\n{transcript[:3000]}",
+                user="admin"
+            )
+            summary = dify_summary.get("answer", summary)
+        except Exception:
+            pass
+
+        # Step 3: Dify AI 生成知识闪卡
+        flashcards = []
+        try:
+            dify_cards = await DifyService.chat_blocking(
+                query=f"根据以下内容生成5道Q&A问答对（JSON数组格式{{\"question\":\"...\",\"answer\":\"...\"}}）：\n\n{transcript[:3000]}",
+                user="admin"
+            )
+            answer = dify_cards.get("answer", "[]")
+            import re
+            match = re.search(r"\[.*\]", answer, re.DOTALL)
+            if match:
+                flashcards = json.loads(match.group())
+        except Exception:
+            flashcards = [{"question": "AI生成失败", "answer": "请重试"}]
+
         task.status = "done"
-        task.transcript = (
-            "【视频转写结果】\n\n"
-            "00:00 - 00:30 开场介绍\n"
-            "大家好，欢迎收看本期视频。今天我们将探讨人工智能在教育领域的应用与发展。\n\n"
-            "00:30 - 02:00 人工智能基础\n"
-            "人工智能（AI）是计算机科学的一个重要分支，它致力于创建能够模拟人类智能的系统。\n"
-            "近年来，深度学习技术的突破使得AI在图像识别、自然语言处理等领域取得了显著进展。\n\n"
-            "02:00 - 04:00 AI教育应用\n"
-            "在教育领域，AI技术正在改变传统的教学方式。\n"
-            "智能辅导系统能够根据学生的学习情况提供个性化的学习建议。\n"
-            "自适应学习平台可以动态调整教学内容和难度。\n\n"
-            "04:00 - 05:30 案例分析\n"
-            "以某高校为例，他们引入了AI辅助教学系统后，学生的学习效率提升了30%。\n"
-            "教师的工作负担也得到了一定程度的缓解。\n\n"
-            "05:30 - 06:00 总结\n"
-            "人工智能正在深刻改变教育的面貌，未来还有更多的可能性等待我们去探索。"
-        )
-        task.summary = (
-            "【视频摘要】\n\n"
-            "本视频主要介绍了人工智能在教育领域的应用现状与发展趋势。\n"
-            "首先阐述了人工智能的基本概念和核心技术，包括深度学习、自然语言处理等。\n"
-            "随后重点分析了AI在教育中的典型应用场景，如智能辅导、自适应学习、自动评估等。\n"
-            "通过实际案例展示了AI技术提升教学效果的潜力。\n"
-            "最后展望了AI+教育的未来发展方向。"
-        )
-        task.flashcards = json.dumps(
-            [
-                {
-                    "question": "人工智能(AI)的主要研究目标是什么？",
-                    "answer": "创建能够模拟人类智能的系统，使计算机能够执行需要人类智能的任务。",
-                },
-                {
-                    "question": "深度学习在AI教育中有哪些应用？",
-                    "answer": "图像识别、自然语言处理、智能辅导系统、自适应学习平台等。",
-                },
-                {
-                    "question": "AI辅助教学系统带来了哪些提升？",
-                    "answer": "根据实际案例，学生的学习效率提升了30%，教师工作负担得到缓解。",
-                },
-                {
-                    "question": "自适应学习平台的核心特点是什么？",
-                    "answer": "能够根据学生的学习情况动态调整教学内容和难度，提供个性化的学习体验。",
-                },
-                {
-                    "question": "AI在教育领域的未来发展方向是什么？",
-                    "answer": "更智能的个性化学习、更精准的学习评估、更丰富的交互方式等。",
-                },
-            ],
-            ensure_ascii=False,
-        )
-        task.duration = 360  # 6 minutes in seconds
+        task.transcript = transcript
+        task.summary = summary
+        task.flashcards = json.dumps(flashcards, ensure_ascii=False)
+
+        # 保存视频到 Dify 知识库（可选）
+        try:
+            await DifyService.upload_file(filepath, "admin")
+        except Exception:
+            pass
 
         await session.commit()
 
