@@ -202,9 +202,7 @@ async def list_topics(
 ):
     user_id = await _get_current_user_id(token, db)
     result = await db.execute(
-        select(ResearchTopic)
-        .where(ResearchTopic.user_id == user_id)
-        .order_by(ResearchTopic.id.desc())
+        select(ResearchTopic).order_by(ResearchTopic.id.desc())
     )
     topics = result.scalars().all()
     return {"topics": [

@@ -13,8 +13,8 @@
       </el-input>
       <el-radio-group v-model="filter" size="small">
         <el-radio-button value="">全部</el-radio-button>
-        <el-radio-button value="教学">教学</el-radio-button>
         <el-radio-button value="科研">科研</el-radio-button>
+        <el-radio-button value="教学">教学</el-radio-button>
         <el-radio-button value="新闻">新闻</el-radio-button>
         <el-radio-button value="工具">工具</el-radio-button>
       </el-radio-group>
@@ -26,7 +26,7 @@
 
     <el-row :gutter="16">
       <el-col :xs="24" :sm="12" :md="8" :lg="6" v-for="s in displayed" :key="s.id" style="margin-bottom:16px;">
-        <el-card shadow="hover" class="skill-card" @click="useSkill(s)">
+        <el-card shadow="hover" class="skill-card" @click="openDetail(s)">
           <div class="skill-actions-top">
             <el-button
               :type="s.favorited ? 'warning' : 'default'"
@@ -37,21 +37,44 @@
             />
           </div>
           <div class="skill-main">
-            <div class="skill-icon" :style="{background: hexToRgba(s.color, 0.08), borderColor: hexToRgba(s.color, 0.18)}">
-              <el-icon :size="26" :color="s.color"><component :is="s.icon || 'MagicStick'" /></el-icon>
+            <div class="skill-icon" :style="{background: hexToRgba(s.color || '#1677ff', 0.08), borderColor: hexToRgba(s.color || '#1677ff', 0.18)}">
+              <el-icon :size="26" :color="s.color || '#1677ff'"><component :is="iconMap[s.icon] || MenuIcon" /></el-icon>
             </div>
             <div class="skill-info">
               <h3>{{ s.name }}</h3>
-              <p>{{ s.desc }}</p>
+              <p>{{ s.desc || '暂无描述' }}</p>
             </div>
           </div>
           <div class="skill-footer">
-            <el-tag size="small" effect="light" :style="{color: s.color, background: hexToRgba(s.color, 0.08), borderColor: hexToRgba(s.color, 0.15)}">{{ s.category }}</el-tag>
-            <span class="skill-stars">★ {{ s.rating }}</span>
+            <el-tag size="small" effect="light" :style="{color: s.color||'#1677ff', background: hexToRgba(s.color||'#1677ff', 0.08), borderColor: hexToRgba(s.color||'#1677ff', 0.15)}">{{ s.category }}</el-tag>
           </div>
         </el-card>
       </el-col>
     </el-row>
+
+    <!-- 技能详情对话框 -->
+    <el-dialog v-model="detailVisible" :title="detailSkill?.name" width="540px" destroy-on-close>
+      <template v-if="detailSkill">
+        <div style="display:flex;gap:16px;margin-bottom:20px">
+          <div class="skill-icon" style="width:64px;height:64px;border-radius:16px" :style="{background: hexToRgba(detailSkill.color||'#1677ff',0.08), borderColor: hexToRgba(detailSkill.color||'#1677ff',0.18)}">
+            <el-icon :size="32" :color="detailSkill.color||'#1677ff'"><component :is="iconMap[detailSkill.icon] || MenuIcon" /></el-icon>
+          </div>
+          <div>
+            <el-tag size="small" effect="light">{{ detailSkill.category }}</el-tag>
+            <p style="color:#666;margin-top:8px;line-height:1.6">{{ detailSkill.desc }}</p>
+          </div>
+        </div>
+        <el-divider />
+        <div v-if="detailSkill.prompt" style="background:#f8f9fb;border-radius:8px;padding:12px;margin-bottom:16px">
+          <p style="color:#999;font-size:12px;margin:0 0 6px">系统提示词</p>
+          <p style="color:#444;font-size:13px;margin:0;white-space:pre-wrap;line-height:1.6">{{ detailSkill.prompt }}</p>
+        </div>
+      </template>
+      <template #footer>
+        <el-button @click="detailVisible=false">关闭</el-button>
+        <el-button type="primary" @click="useSkill(detailSkill)">使用此技能</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 新建技能对话框 -->
     <el-dialog v-model="createVisible" title="新建技能" width="520px" destroy-on-close>
@@ -77,15 +100,17 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, Star, StarFilled, Plus } from '@element-plus/icons-vue'
+import { Search, Star, StarFilled, Plus, Menu as MenuIcon } from '@element-plus/icons-vue'
+import * as Icons from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { apiGet, apiPost, apiPut } from '../api.js'
 
 const router = useRouter()
-const search = ref('')
-const filter = ref('')
-const showFavOnly = ref(false)
+const search = ref(''), filter = ref(''), showFavOnly = ref(false)
 const skills = ref([])
+
+// 图标名称映射表
+const iconMap = { ...Icons, MenuIcon }
 
 async function loadSkills() {
   const data = await apiGet('/api/skills')
@@ -102,38 +127,44 @@ const displayed = computed(() => {
 })
 
 async function toggleFav(s) {
-  const skillId = s.id.replace('s', '')
+  const skillId = s.id
   const resp = await apiPut(`/api/skills/${skillId}/favorite`, {})
   if (resp) { s.favorited = resp.favorited; ElMessage.success(resp.favorited ? '已收藏' : '已取消收藏') }
+}
+
+// 技能详情对话框
+const detailVisible = ref(false)
+const detailSkill = ref(null)
+function openDetail(s) { detailSkill.value = s; detailVisible.value = true }
+
+function useSkill(s) {
+  if (!s) return
+  detailVisible.value = false
+  router.push(`/workspace/chat?skill=${s.id}`)
 }
 
 // 新建技能
 const createVisible = ref(false)
 const createForm = ref({ name: '', desc: '', category: '科研', prompt: '' })
-function openCreateDialog() { createForm.value = { name: '', desc: '', category: '科研', prompt: '' }; createVisible.value = true }
+function openCreateDialog() {
+  createForm.value = { name: '', desc: '', category: '科研', prompt: '' }
+  createVisible.value = true
+}
 async function confirmCreate() {
   if (!createForm.value.name) { ElMessage.warning('请输入技能名称'); return }
   const resp = await apiPost('/api/skills', { name: createForm.value.name, desc: createForm.value.desc, category: createForm.value.category, prompt: createForm.value.prompt })
   if (resp) { createVisible.value = false; await loadSkills(); ElMessage.success('技能已创建并自动收藏') }
 }
 
-function useSkill(s) { router.push(`/workspace/chat?skill=${s.id}`) }
 function hexToRgba(hex, alpha) {
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+  if (!hex || !hex.startsWith('#')) return `rgba(22,119,255,${alpha})`
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16)
+  return `rgba(${r},${g},${b},${alpha})`
 }
 </script>
 
 <style scoped>
-.skill-card {
-  cursor: pointer;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-color);
-  transition: all var(--transition-base);
-  position: relative;
-}
+.skill-card { cursor: pointer; border-radius: var(--radius-md); border: 1px solid var(--border-color); transition: all var(--transition-base); position: relative; }
 .skill-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-card-hover); border-color: var(--el-color-primary-light-7); }
 .skill-actions-top { position: absolute; top: 10px; right: 10px; z-index: 2; }
 .skill-main { display: flex; gap: 12px; margin-bottom: 14px; }
@@ -142,5 +173,4 @@ function hexToRgba(hex, alpha) {
 .skill-info h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; color: var(--text-main); }
 .skill-info p { color: var(--text-muted); font-size: 12px; margin: 0; line-height: 1.5; }
 .skill-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--border-color); }
-.skill-stars { font-size: 13px; color: #faad14; font-weight: 600; }
 </style>
