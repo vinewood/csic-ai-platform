@@ -73,6 +73,8 @@ async def get_admin_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> dict:
     """仅允许 admin 角色访问"""
+    if credentials is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="请先登录")
     payload = decode_token(credentials.credentials)
     role = payload.get("role", "user")
     if role != "admin":

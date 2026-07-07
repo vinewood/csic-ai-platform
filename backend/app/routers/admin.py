@@ -2,9 +2,17 @@
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse
 
-from ..auth import get_admin_user
+# 兼容老版本 auth.py 没有 get_admin_user 的情况
+try:
+    from ..auth import get_admin_user
+except ImportError:
+    from ..auth import get_current_user
+    async def get_admin_user(credentials=None):
+        user = await get_current_user(credentials) if credentials else get_current_user()
+        if isinstance(user, dict) and user.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="仅管理员可访问")
+        return user
 
 router = APIRouter(prefix="/api/admin", tags=["管理后台"])
 

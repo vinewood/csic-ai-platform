@@ -267,6 +267,33 @@
           </el-card>
         </el-tab-pane>
 
+        <!-- Dify / 集成项目面板 -->
+        <el-tab-pane label="Dify集成" name="dify">
+          <el-card shadow="never">
+            <template #header><span style="font-weight:700">开源项目集成状态</span></template>
+            <el-row :gutter="16">
+              <el-col :span="8" v-for="item in integrations" :key="item.id">
+                <el-card shadow="hover" style="margin-bottom:12px">
+                  <div style="display:flex;align-items:center;justify-content:space-between">
+                    <strong>{{ item.name }}</strong>
+                    <el-tag :type="item.status==='online'?'success':'danger'" size="small">{{ item.status }}</el-tag>
+                  </div>
+                  <p style="color:#999;font-size:12px;margin-top:8px">{{ item.desc }}</p>
+                </el-card>
+              </el-col>
+            </el-row>
+
+            <el-divider />
+
+            <template #header><span style="font-weight:700">Dify 知识库同步</span></template>
+            <el-select v-model="difySync.kbId" placeholder="选择本地知识库" style="width:240px;margin-right:12px" @change="fetchDifyDatasets">
+              <el-option v-for="kb in knowledgeBases" :key="kb.id" :label="kb.name" :value="kb.id" />
+            </el-select>
+            <el-button type="primary" @click="syncToDify" :disabled="!difySync.kbId">同步到 Dify</el-button>
+            <p style="color:#999;font-size:12px;margin-top:8px">将本地知识库文档上传到 Dify，启用 RAG 增强检索</p>
+          </el-card>
+        </el-tab-pane>
+
       </el-tabs>
     </el-card>
 
@@ -595,7 +622,10 @@ onMounted(async () => {
   await Promise.allSettled([
     loadUsers(),
     loadModels(),
-    loadRss()
+    loadRss(),
+    fetchIntegrations(),
+    fetchKnowledgeBases()
+  ])
   ])
 })
 
@@ -635,6 +665,45 @@ async function testVipApi() {
   } catch (e) {
     testResult.vip = false; ElMessage.error('连接异常: ' + e.message)
   } finally { testing.vip = false }
+}
+
+// ---- Dify / 集成项目管理 ----
+const integrations = ref([])
+const knowledgeBases = ref([])
+const difySync = reactive({ kbId: '' })
+
+async function fetchIntegrations() {
+  const token = localStorage.getItem('csic_token')
+  if (!token) return
+  try {
+    const r = await fetch(API + '/api/admin/integrations', { headers: { 'Authorization': 'Bearer ' + token } })
+    const d = await r.json()
+    integrations.value = d.integrations || []
+  } catch(e) {}
+}
+
+async function fetchKnowledgeBases() {
+  const token = localStorage.getItem('csic_token')
+  if (!token) return
+  try {
+    const r = await fetch(API + '/api/knowledge', { headers: { 'Authorization': 'Bearer ' + token } })
+    const d = await r.json()
+    knowledgeBases.value = Array.isArray(d) ? d : (d.items || [])
+  } catch(e) {}
+}
+
+async function fetchDifyDatasets() { /* placeholder */ }
+
+async function syncToDify() {
+  const token = localStorage.getItem('csic_token')
+  if (!token) return
+  try {
+    const r = await fetch(API + '/api/dify/sync-knowledge?kb_id=' + difySync.kbId, {
+      method: 'POST', headers: { 'Authorization': 'Bearer ' + token }
+    })
+    const d = await r.json()
+    ElMessage.success(d.message || '同步完成')
+  } catch(e) { ElMessage.error('同步失败') }
 }
 </script>
 
