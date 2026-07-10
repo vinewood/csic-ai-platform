@@ -6,7 +6,7 @@
 
       <div class="panel-title" style="margin-top:12px">教学功能</div>
       <div class="func-list">
-        <div v-for="f in teachFuncs" :key="f.id" class="func-btn" :class="{active:f.id===funcId}" @click="funcId=f.id;input=f.prompt">
+        <div v-for="f in teachFuncs" :key="f.id" class="func-btn" :class="{active:f.id===funcId}" @click="useFunc(f)">
           <el-icon :size="15"><component :is="f.icon" /></el-icon>{{ f.label }}
         </div>
       </div>
@@ -20,10 +20,11 @@
             <el-button link size="small" class="hist-btn" @click.stop><el-icon><MoreFilled /></el-icon></el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="pin">📌 置顶</el-dropdown-item>
-                <el-dropdown-item command="docx">💾 保存到本地(docx)</el-dropdown-item>
-                <el-dropdown-item command="skill">🧩 整理成技能</el-dropdown-item>
-                <el-dropdown-item command="delete" divided>🗑 删除</el-dropdown-item>
+                <el-dropdown-item command="rename"><el-icon><EditPen /></el-icon> 重命名</el-dropdown-item>
+                <el-dropdown-item command="pin"><el-icon><Top /></el-icon> 置顶</el-dropdown-item>
+                <el-dropdown-item command="docx"><el-icon><Download /></el-icon> 保存到本地</el-dropdown-item>
+                <el-dropdown-item command="skill"><el-icon><MagicStick /></el-icon> 整理成技能</el-dropdown-item>
+                <el-dropdown-item command="delete" divided><el-icon><Delete /></el-icon> 删除</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -62,20 +63,36 @@
             <el-button v-for="q in quickBtns" :key="q.id" size="small" round @click="input=q.prompt;doSend()">{{ q.label }}</el-button>
           </div>
         </div>
-        <div v-for="(m,i) in msgs" :key="i" :class="['msg',m.role]">
-          <div class="msg-text" v-html="render(m.content)"></div>
+        <div v-for="(m,i) in msgs" :key="i">
+          <template v-if="m.results">
+            <div class="msg user"><div class="msg-text">{{ m.content }}</div></div>
+            <div class="multi-grid">
+              <div v-for="r in m.results" :key="r.model" class="multi-cell">
+                <div class="multi-label">{{ r.model }}</div>
+                <div class="msg-text" v-html="render(r.content)"></div>
+              </div>
+            </div>
+          </template>
+          <div v-else :class="['msg',m.role]">
+            <div class="msg-text" v-html="render(m.content)"></div>
+          </div>
         </div>
         <div v-if="thinking" class="msg assistant"><div class="msg-text">...</div></div>
       </div>
 
       <!-- 输入区 -->
       <div class="chat-input">
-        <el-upload :show-file-list="false" :before-upload="handleUpload" accept=".pdf,.docx,.txt,.md">
-          <el-button circle size="small"><el-icon><UploadFilled /></el-icon></el-button>
-        </el-upload>
-        <el-input v-model="input" type="textarea" :rows="3" placeholder="输入教学需求，Enter 发送"
-          @keydown.enter.exact.prevent="doSend" resize="none" />
-        <el-button type="primary" @click="doSend" :loading="thinking" size="small">发送</el-button>
+        <div v-if="skillId" class="skill-badge">
+          <el-tag type="warning" size="small" closable @close="skillId=''">🔧 {{ getSkillName(skillId) }}</el-tag>
+        </div>
+        <div class="input-row">
+          <el-upload :show-file-list="false" :before-upload="handleUpload" accept=".pdf,.docx,.txt,.md">
+            <el-button circle size="small"><el-icon><UploadFilled /></el-icon></el-button>
+          </el-upload>
+          <el-input v-model="input" type="textarea" :rows="3" placeholder="输入教学需求，Enter 发送"
+            @keydown.enter.exact.prevent="doSend" resize="none" />
+          <el-button type="primary" @click="doSend" :loading="thinking" size="small">发送</el-button>
+        </div>
       </div>
     </div>
 
@@ -95,7 +112,7 @@
 
 <script setup>
 import { ref, onMounted, nextTick } from 'vue'
-import { Plus, UploadFilled, EditPen, Document, DataBoard, Notebook, MagicStick, MoreFilled } from '@element-plus/icons-vue'
+import { Plus, UploadFilled, EditPen, Document, DataBoard, Notebook, MagicStick, MoreFilled, Top, Download, Delete } from '@element-plus/icons-vue'
 import * as Icons from '@element-plus/icons-vue'
 import { apiGet, apiDelete } from '../api.js'
 import { marked } from 'marked'
@@ -130,6 +147,23 @@ onMounted(async () => {
 })
 
 function newConv() { convId.value = 'new'; msgs.value = [] }
+
+function useFunc(f) {
+  funcId.value = f.id
+  input.value = f.prompt
+  nextTick(() => {
+    const ta = document.querySelector('.chat-input textarea')
+    if (ta) {
+      ta.focus()
+      // 选中【...】内的占位文字
+      const match = f.prompt.match(/【(.+?)】/)
+      if (match) {
+        const start = f.prompt.indexOf(match[0])
+        ta.setSelectionRange(start, start + match[0].length)
+      }
+    }
+  })
+}
 async function loadConv(c) {
   convId.value = c.id
   const data = await apiGet(`/api/chat/conversations/${c.id}/messages`)
@@ -141,21 +175,21 @@ async function refreshConvs() {
 }
 
 async function saveResult() {
-  const lastAssistant = [...msgs.value].reverse().find(m => m.role === 'assistant')
-  if (!lastAssistant) { ElMessage.warning('暂无可保存的内容'); return }
-  // 尝试解析 JSON 课题并保存到教学课题表
+  if (convId.value === 'new') { ElMessage.warning('请先发送消息创建对话'); return }
+  ElMessage.info('正在生成 docx...')
+  const token = localStorage.getItem('csic_token')
+  const API_BASE = location.port === '5173' ? 'http://localhost:8000' : ''
   try {
-    const match = lastAssistant.content.match(/\[[\s\S]*\]/)
-    if (match) {
-      const topics = JSON.parse(match[0])
-      for (const t of topics) {
-        await apiGet(`/api/teaching/save-topic?title=${encodeURIComponent(t.title||'')}&desc=${encodeURIComponent(t.desc||t.description||'')}&level=${encodeURIComponent(t.level||'标准')}&hours=${t.hours||4}`)
-      }
-      ElMessage.success(`已保存${topics.length}个课题`)
-      return
-    }
-  } catch {}
-  ElMessage.success('对话内容已保存（可在历史对话中查看）')
+    const r = await fetch(`${API_BASE}/api/export/docx`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ conversation_id: convId.value })
+    })
+    if (r.ok) {
+      const blob = await r.blob(); const url = URL.createObjectURL(blob)
+      const a = document.createElement('a'); a.href = url; a.download = `教学对话.docx`; a.click()
+      ElMessage.success('已下载 docx')
+    } else { ElMessage.error('生成失败') }
+  } catch (e) { ElMessage.error(e.message) }
 }
 
 async function doSend() {
@@ -164,38 +198,76 @@ async function doSend() {
   input.value = ''; thinking.value = true; funcId.value = ''
   msgs.value.push({ role: 'user', content: t })
   await nextTick(); scrollBottom()
-  msgs.value.push({ role: 'assistant', content: '' })
-  const last = msgs.value[msgs.value.length - 1]
 
   const token = localStorage.getItem('csic_token')
   const API_BASE = location.port === '5173' ? 'http://localhost:8000' : ''
-  try {
-    const resp = await fetch(`${API_BASE}/api/chat/dify-chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ query: t, model: model.value, skill_id: skillId.value || '' })
-    })
-    const reader = resp.body.getReader()
-    const dec = new TextDecoder()
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      for (const line of dec.decode(value, { stream: true }).split('\n')) {
-        if (line.startsWith('data: ')) {
-          const d = line.slice(6)
-          if (d === '[DONE]') continue
-          try { const j = JSON.parse(d); if (j.content) last.content += j.content
-            if (j.conversation_id && convId.value === 'new') { convId.value = j.conversation_id; refreshConvs() }
-          } catch {}
+
+  if (mode.value === 'single') {
+    msgs.value.push({ role: 'assistant', content: '' })
+    const last = msgs.value[msgs.value.length - 1]
+    try {
+      const resp = await fetch(`${API_BASE}/api/chat/dify-chat`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ query: t, model: model.value, skill_id: skillId.value || '' })
+      })
+      const reader = resp.body.getReader(); const dec = new TextDecoder()
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        for (const line of dec.decode(value,{stream:true}).split('\n')) {
+          if (line.startsWith('data: ')) {
+            const d = line.slice(6); if (d === '[DONE]') continue
+            try { const j = JSON.parse(d); if (j.content) last.content += j.content
+              if (j.conversation_id && convId.value==='new') { convId.value = j.conversation_id; refreshConvs() }
+            } catch {}
+          }
         }
       }
-    }
-  } catch (e) { last.content = `[错误] ${e.message}` }
-  finally { thinking.value = false; await nextTick(); scrollBottom() }
+    } catch (e) { last.content = `[错误] ${e.message}` }
+  } else {
+    // 多模型对比
+    const results = multiModels.value.map(m => ({ model: m, content: '' }))
+    msgs.value.push({ role: 'assistant', results })
+    const last = msgs.value[msgs.value.length - 1]
+    await Promise.all(multiModels.value.map(async (m, i) => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/chat/dify-chat`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ query: t, model: m, skill_id: skillId.value || '' })
+        })
+        const reader = resp.body.getReader(); const dec = new TextDecoder()
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          for (const line of dec.decode(value,{stream:true}).split('\n')) {
+            if (line.startsWith('data: ')) {
+              const d = line.slice(6); if (d === '[DONE]') continue
+              try { const j = JSON.parse(d); if (j.content) last.results[i].content += j.content } catch {}
+            }
+          }
+        }
+      } catch (e) { last.results[i].content = `[错误] ${e.message}` }
+    }))
+  }
+  thinking.value = false; await nextTick(); scrollBottom()
 }
 
 async function histAction(cmd, c) {
-  if (cmd === 'delete') {
+  if (cmd === 'rename') {
+    try {
+      const { value } = await import('element-plus').then(m => m.ElMessageBox.prompt('请输入新名称', '重命名', { inputValue: c.title }))
+      if (value && value.trim()) {
+        const token = localStorage.getItem('csic_token')
+        const API_BASE = location.port === '5173' ? 'http://localhost:8000' : ''
+        await fetch(`${API_BASE}/api/chat/conversations/${c.id}/rename`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ title: value.trim() })
+        })
+        c.title = value.trim()
+        ElMessage.success('已重命名')
+      }
+    } catch {}
+  } else if (cmd === 'delete') {
     await apiDelete(`/api/chat/conversations/${c.id}`)
     convs.value = convs.value.filter(x => x.id !== c.id)
     if (convId.value === c.id) { convId.value = 'new'; msgs.value = [] }
@@ -234,6 +306,7 @@ function render(t) {
   try { return marked.parse(t.replace(/\n{3,}/g, '\n\n')) } catch { return t }
 }
 function scrollBottom() { nextTick(() => { if(bodyRef.value) bodyRef.value.scrollTop = bodyRef.value.scrollHeight }) }
+function getSkillName(id) { const s = skills.value.find(x => String(x.id) === String(id)); return s ? s.name : '技能' }
 
 async function handleUpload(file) {
   const formData = new FormData(); formData.append('file', file)
@@ -285,15 +358,21 @@ async function handleUpload(file) {
 .msg-text :deep(pre) { background:#1e293b;color:#e2e8f0;padding:5px 8px;border-radius:5px;overflow-x:auto;font-size:11px; }
 .msg-text :deep(code) { background:#e5e7eb;padding:1px 3px;border-radius:3px;font-size:11px; }
 
-.chat-input { padding:8px 12px; border-top:1px solid #e5e7eb; display:flex; gap:6px; align-items:center; }
+.chat-input { padding:8px 12px; border-top:1px solid #e5e7eb; }
+.skill-badge { padding:4px 0; }
+.input-row { display:flex; gap:6px; align-items:center; }
 .chat-input :deep(.el-textarea__inner) { border-radius:8px; font-size:13px; padding:6px 8px; }
 
-.skill-panel { width:160px; min-width:160px; background:#f8f9fb; border-left:1px solid #e5e7eb; padding:10px 8px; }
-.skill-list { display:flex; flex-direction:column; gap:3px; }
+.skill-panel { width:160px; min-width:160px; background:#f8f9fb; border-left:1px solid #e5e7eb; padding:10px 8px; overflow:hidden; display:flex; flex-direction:column; }
+.skill-list { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:3px; }
 .skill-btn { display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:6px; cursor:pointer; font-size:12px; color:#374151; }
 .skill-btn:hover { background:#e8ecf1; }
 .skill-btn.active { background:#1677ff12; color:#1677ff; font-weight:600; }
 .skill-btn span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+.multi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:8px; margin-bottom:12px; }
+.multi-cell { border:1px solid #e5e7eb; border-radius:8px; padding:8px; }
+.multi-label { font-size:11px; color:#1677ff; font-weight:600; margin-bottom:4px; }
 
 @media (max-width:768px) { .teach-panel,.skill-panel { display:none; } .teach-layout { margin:0; } }
 </style>

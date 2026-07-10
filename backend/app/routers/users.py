@@ -33,6 +33,20 @@ async def create_user(req: UserCreate, db: AsyncSession = Depends(get_db), curre
     return MessageResponse(message="用户已创建")
 
 
+@router.put("/{user_id}", response_model=MessageResponse)
+async def update_user(user_id: int, req: dict, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    if req.get("name") is not None:
+        user.username = req["name"]
+    if req.get("email") is not None:
+        user.email = req["email"]
+    await db.commit()
+    return MessageResponse(message="用户已更新")
+
+
 @router.delete("/{user_id}", response_model=MessageResponse)
 async def delete_user(user_id: int, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
     result = await db.execute(select(User).where(User.id == user_id))

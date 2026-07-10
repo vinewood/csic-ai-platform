@@ -71,10 +71,9 @@ const userName = computed(() => {
 
 const tabs = computed(() => {
   const parent = route.matched.find(r => r.path === '/workspace')
-  return (parent?.children || []).map(child => ({
-    ...child,
-    fullPath: '/workspace/' + child.path
-  }))
+  return (parent?.children || [])
+    .filter(child => !child.meta?.hidden)
+    .map(child => ({ ...child, fullPath: '/workspace/' + child.path }))
 })
 
 function isActive(tab) { return route.path === tab.fullPath }

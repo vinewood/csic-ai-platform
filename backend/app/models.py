@@ -46,6 +46,27 @@ class Message(Base):
     conversation = relationship("Conversation", back_populates="messages")
 
 
+# 科研工作台独立对话表
+class ResearchConversation(Base):
+    __tablename__ = "research_conversations"
+    id = Column(Integer, primary_key=True)
+    title = Column(String(256), default="科研对话")
+    user_id = Column(Integer, ForeignKey("users.id"))
+    model = Column(String(64), default="deepseek")
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, onupdate=func.now())
+    messages = relationship("ResearchMessage", back_populates="conversation", cascade="all, delete-orphan")
+
+class ResearchMessage(Base):
+    __tablename__ = "research_messages"
+    id = Column(Integer, primary_key=True)
+    conversation_id = Column(Integer, ForeignKey("research_conversations.id"))
+    role = Column(String(16), nullable=False)
+    content = Column(Text)
+    created_at = Column(DateTime, server_default=func.now())
+    conversation = relationship("ResearchConversation", back_populates="messages")
+
+
 class KnowledgeBase(Base):
     __tablename__ = "knowledge_bases"
     id = Column(Integer, primary_key=True)
@@ -81,6 +102,7 @@ class Skill(Base):
     color = Column(String(16), default="#1677ff")
     rating = Column(Float, default=5.0)
     favorited = Column(Boolean, default=False)
+    github_url = Column(String(512))
     is_preset = Column(Boolean, default=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())

@@ -1,156 +1,129 @@
 <template>
-  <div class="academic-workspace">
-    <!-- Hero header — keep style -->
-    <div class="csic-hero" style="background-image:url(https://images.unsplash.com/photo-1532619675605-1ede6c2ed2b0?w=1200&q=80);">
-      <div class="hero-content">
-        <h2>科研工作台</h2>
-        <p>AI 驱动的学术研究助手 · 基于 gpt_academic 引擎</p>
+  <div>
+    <div class="r-topbar">
+      <div class="r-title">科研工作台</div>
+      <div class="r-tabs">
+        <div v-for="t in tabs" :key="t.id" :class="['r-tab',{active:t.id===tab}]" @click="tab=t.id">
+          <el-icon :size="16"><component :is="t.icon" /></el-icon>{{ t.label }}
+        </div>
+        <el-select v-if="tab==='chat'" v-model="model" size="small" style="width:110px;margin-left:auto">
+          <el-option v-for="m in models" :key="m" :label="m" :value="m" />
+        </el-select>
       </div>
     </div>
 
-    <!-- Main workspace: left plugins + right chat -->
-    <div class="workspace-container">
-      <!-- ====== LEFT: 功能插件面板 ====== -->
-      <div class="plugin-panel">
-        <div class="panel-title">功能插件</div>
-        
-        <div class="plugin-group">
-          <div class="group-label">学术写作</div>
-          <div v-for="p in writingPlugins" :key="p.id" 
-            class="plugin-btn" :class="{ active: activePlugin === p.id }"
-            @click="activatePlugin(p)">
-            <el-icon :size="18"><component :is="p.icon" /></el-icon>
-            <span>{{ p.label }}</span>
+    <div class="r-body">
+      <!-- ====== Tab 1: 学术对话 ====== -->
+      <div v-if="tab==='chat'" class="full-chat">
+        <div class="chat-side">
+          <div class="func-group-label">论文处理</div>
+          <div v-for="f in paperFuncs" :key="f.id" class="side-func" @click="chatInput=f.placeholder;focusInput()">
+            <el-icon :size="13"><component :is="f.icon" /></el-icon>{{ f.label }}
+          </div>
+          <div class="func-group-label" style="margin-top:8px">学术写作</div>
+          <div v-for="f in writeFuncs" :key="f.id" class="side-func" @click="chatInput=f.placeholder;focusInput()">
+            <el-icon :size="13"><component :is="f.icon" /></el-icon>{{ f.label }}
+          </div>
+          <div class="func-group-label" style="margin-top:8px">研究工具</div>
+          <div v-for="f in toolFuncs" :key="f.id" class="side-func" @click="chatInput=f.placeholder;focusInput()">
+            <el-icon :size="13"><component :is="f.icon" /></el-icon>{{ f.label }}
+          </div>
+          <div style="height:1px;background:#e5e7eb;margin:6px 0"></div>
+          <el-button type="primary" :icon="Plus" size="small" class="new-btn" @click="newConv">新建对话</el-button>
+          <div class="hist-list">
+            <div v-for="c in convs" :key="c.id" class="hist-item" :class="{active:c.id===convId}" @click="loadConv(c)">
+              <span class="hist-title">{{ c.title||'对话' }}</span>
+              <el-dropdown trigger="click" @command="(cmd)=>histAction(cmd,c)"><el-button link size="small" class="hist-more" @click.stop><el-icon><MoreFilled /></el-icon></el-button>
+                <template #dropdown><el-dropdown-menu>
+                  <el-dropdown-item command="rename"><el-icon><EditPen /></el-icon>重命名</el-dropdown-item>
+                  <el-dropdown-item command="docx"><el-icon><Download /></el-icon>保存docx</el-dropdown-item>
+                  <el-dropdown-item command="skill"><el-icon><MagicStick /></el-icon>整理技能</el-dropdown-item>
+                  <el-dropdown-item command="delete" divided><el-icon><Delete /></el-icon>删除</el-dropdown-item>
+                </el-dropdown-menu></template>
+              </el-dropdown>
+            </div><div v-if="!convs.length" style="color:#bbb;font-size:11px;text-align:center;padding:10px">暂无历史</div>
           </div>
         </div>
-
-        <div class="plugin-group">
-          <div class="group-label">论文处理</div>
-          <div v-for="p in paperPlugins" :key="p.id" 
-            class="plugin-btn" :class="{ active: activePlugin === p.id }"
-            @click="activatePlugin(p)">
-            <el-icon :size="18"><component :is="p.icon" /></el-icon>
-            <span>{{ p.label }}</span>
+        <div class="chat-main">
+          <div class="chat-body" ref="chatBody">
+            <div v-if="chatMsgs.length===0" class="empty">输入研究方向开始学术对话</div>
+            <div v-for="(m,i) in chatMsgs" :key="i" :class="['msg',m.role]"><div class="msg-text" v-html="render(m.content)"></div></div>
+            <div v-if="chatLoading" class="msg assistant"><div class="msg-text">...</div></div>
+          </div>
+          <div class="chat-input-wrap">
+            <el-upload :show-file-list="false" :before-upload="handleUpload" accept=".pdf,.docx,.txt,.md"><el-button circle size="small"><el-icon><UploadFilled /></el-icon></el-button></el-upload>
+            <el-input v-model="chatInput" type="textarea" :rows="3" placeholder="输入研究方向或学术问题..." @keydown.enter.exact.prevent="chatSend" resize="none" />
+            <el-button type="primary" @click="chatSend" :loading="chatLoading" size="small">发送</el-button>
           </div>
         </div>
-
-        <div class="plugin-group">
-          <div class="group-label">研究辅助</div>
-          <div v-for="p in auxPlugins" :key="p.id" 
-            class="plugin-btn" :class="{ active: activePlugin === p.id }"
-            @click="activatePlugin(p)">
-            <el-icon :size="18"><component :is="p.icon" /></el-icon>
-            <span>{{ p.label }}</span>
-          </div>
-        </div>
-
-        <div class="panel-divider"></div>
-        
-        <div class="model-selector">
-          <span class="model-label">模型</span>
-          <el-select v-model="selectedModel" size="small" style="width:100%">
-            <el-option label="DeepSeek" value="deepseek" />
-            <el-option label="千问" value="qwen" />
-            <el-option label="智谱" value="zhipu" />
-            <el-option label="Kimi" value="kimi" />
-            <el-option label="MiniMax" value="minimax" />
-          </el-select>
-        </div>
-
-        <div class="param-row">
-          <span>Temperature</span>
-          <el-slider v-model="temperature" :min="0" :max="2" :step="0.1" size="small" show-input />
+        <div class="chat-skill">
+          <div class="skill-label">技能</div>
+          <div class="skill-list" v-if="skillList.length"><div v-for="s in skillList" :key="s.id" class="skill-row" :class="{active:s.id===skillId}" @click="skillId=s.id;ElMessage.success('已挂载: '+s.name)"><el-icon :size="13"><component :is="iconMap[s.icon]||MagicStick" /></el-icon><span>{{ s.name }}</span></div></div>
         </div>
       </div>
 
-      <!-- ====== RIGHT: 对话工作区 ====== -->
-      <div class="chat-area">
-        <!-- 对话历史 -->
-        <div class="chat-messages" ref="msgBox">
-          <div v-if="messages.length === 0" class="welcome-area">
-            <div class="welcome-icon">
-              <el-icon :size="48"><Reading /></el-icon>
-            </div>
-            <h3>gpt_academic 科研助手</h3>
-            <p>选择一个功能插件开始，或直接在下方输入研究问题</p>
-            <div class="quick-actions">
-              <el-button v-for="q in quickStarts" :key="q.id" size="small" round @click="quickStart(q)">
-                {{ q.label }}
-              </el-button>
-            </div>
+      <!-- ====== Tab 2: 论文阅读 ====== -->
+      <div v-if="tab==='read'" class="func-panel">
+        <div class="panel-split">
+          <div class="panel-left">
+            <div class="panel-title">📄 上传论文</div>
+            <el-upload :show-file-list="false" :before-upload="uploadPaper" accept=".pdf" drag><el-icon :size="32"><UploadFilled /></el-icon><p>点击或拖拽PDF</p></el-upload>
+            <el-divider />
+            <div class="panel-title">🔗 Arxiv论文</div>
+            <el-input v-model="arxivUrl" placeholder="粘贴Arxiv链接" size="small" /><el-button size="small" style="margin-top:6px;width:100%" @click="onApiRequired('AMiner / Arxiv','open.aminer.cn')" :disabled="!arxivUrl">获取并解读</el-button>
+            <el-divider />
+            <div class="panel-title">📝 粘贴文本</div>
+            <el-input v-model="paperText" type="textarea" :rows="6" placeholder="粘贴论文内容..." size="small" />
+            <el-select v-model="readMode" size="small" style="width:100%;margin:6px 0">
+              <el-option label="深度解读" value="read" /><el-option label="论文评审" value="review" /><el-option label="翻译" value="translate" />
+            </el-select>
+            <el-button type="primary" size="small" style="width:100%" @click="analyzePaper" :disabled="!paperText">分析</el-button>
           </div>
-
-          <div v-for="(msg, idx) in messages" :key="idx" class="msg-item" :class="msg.role">
-            <div class="msg-avatar">
-              <el-icon :size="20"><component :is="msg.role === 'user' ? UserFilled : Cpu" /></el-icon>
-            </div>
-            <div class="msg-content">
-              <div class="msg-text" v-html="renderMarkdown(msg.content)"></div>
-              <div class="msg-ops" v-if="msg.role === 'assistant' && msg.content">
-                <el-button link size="small" @click="copyText(msg.content)"><el-icon><CopyDocument /></el-icon></el-button>
-                <el-button link size="small" @click="regenerate(msg)"><el-icon><Refresh /></el-icon></el-button>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="loading" class="msg-item assistant">
-            <div class="msg-avatar"><el-icon :size="20"><Cpu /></el-icon></div>
-            <div class="msg-content">
-              <div class="thinking-dots"><span></span><span></span><span></span></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 输入区域 -->
-        <div class="input-area">
-          <div class="plugin-hint" v-if="activePlugin">
-            <el-tag type="primary" size="small" closable @close="activePlugin = null">{{ pluginLabel }}</el-tag>
-            <span class="hint-text">{{ pluginHint }}</span>
-          </div>
-
-          <div class="input-row">
-            <el-input
-              v-model="inputText"
-              type="textarea"
-              :rows="3"
-              :placeholder="inputPlaceholder"
-              resize="none"
-              @keydown.enter.ctrl="sendMessage"
-            />
-          </div>
-
-          <div class="action-bar">
-            <div class="left-actions">
-              <el-upload
-                :show-file-list="false"
-                :before-upload="handleUpload"
-                accept=".pdf,.docx,.txt,.md"
-              >
-                <el-button circle size="small"><el-icon><UploadFilled /></el-icon></el-button>
-              </el-upload>
-              <el-button link size="small" @click="clearChat" :disabled="messages.length === 0">
-                <el-icon><Delete /></el-icon> 清空对话
-              </el-button>
-            </div>
-            <div class="right-actions">
-              <el-button @click="inputText = ''; activePlugin = null" :disabled="!inputText && !activePlugin">取消</el-button>
-              <el-button type="primary" @click="sendMessage" :loading="loading" :disabled="!inputText.trim()">
-                <el-icon><Promotion /></el-icon> 发送
-              </el-button>
-            </div>
-          </div>
+          <div class="panel-right"><div class="result-box" ref="readBody"><div v-if="!readResult" class="empty">在左侧上传或粘贴论文开始分析</div><div v-else class="result-text" v-html="render(readResult)"></div><div v-if="readLoading" style="color:#bbb">分析中...</div></div></div>
         </div>
       </div>
 
-      <!-- 右栏：技能中心 -->
-      <div class="skill-sidebar">
-        <div class="panel-title">技能中心</div>
-        <div class="skill-list">
-          <div v-for="s in skillList" :key="s.id" class="skill-item" :class="{active:skillId===s.id}" @click="skillId=s.id;ElMessage.success('已挂载: '+s.name)">
-            <el-icon :size="14"><component :is="iconMap[s.icon] || MagicStick" /></el-icon>
-            <span>{{ s.name }}</span>
+      <!-- ====== Tab 3: 学术写作 ====== -->
+      <div v-if="tab==='write'" class="func-panel">
+        <div class="panel-split">
+          <div class="panel-left" style="width:280px;min-width:280px">
+            <div class="panel-title">选择写作任务</div>
+            <div v-for="f in writeFuncs" :key="f.id" class="write-task" :class="{active:f.id===writeTask}" @click="writeTask=f.id;writeInput=''">
+              <el-icon :size="14"><component :is="f.icon" /></el-icon>{{ f.label }}
+            </div>
+            <el-input v-model="writeInput" type="textarea" :rows="3" :placeholder="writeTask?writeFuncs.find(f=>f.id===writeTask)?.placeholder:'输入主题...'" size="small" style="margin-top:8px" />
+            <el-button type="primary" size="small" style="width:100%;margin-top:6px" @click="doWrite" :loading="writeLoading" :disabled="!writeInput">开始写作</el-button>
           </div>
-          <div v-if="skillList.length===0" style="color:#bbb;font-size:11px;text-align:center;padding:10px">暂无</div>
+          <div class="panel-right"><div class="result-box" ref="writeBody"><div v-if="!writeResult" class="empty">选择任务开始AI写作</div><div v-else class="result-text" v-html="render(writeResult)"></div><div v-if="writeLoading" style="color:#bbb">写作中...</div></div></div>
+        </div>
+      </div>
+
+      <!-- ====== Tab 4: 文献检索 ====== -->
+      <div v-if="tab==='search'" class="func-panel">
+        <div class="panel-split">
+          <div class="panel-left">
+            <div class="panel-title">AI增强学术搜索</div>
+            <el-input v-model="searchQuery" placeholder="输入搜索主题..." size="small" />
+            <el-select v-model="searchType" size="small" style="width:100%;margin:6px 0">
+              <el-option label="综合搜索（概况+文献+学者）" value="search" /><el-option label="技术趋势分析" value="trend" />
+            </el-select>
+            <el-button type="primary" size="small" style="width:100%" @click="doSearch" :loading="false" :disabled="!searchQuery">检索</el-button>
+          </div>
+          <div class="panel-right"><div class="result-box"><div class="empty">此功能需要调用外部学术API<br><br>AMiner Open API 提供3.3亿论文+6800万学者检索<br>维普开放平台提供中文期刊/学位论文检索<br><br>请在系统管理中配置API Key</div></div></div>
+        </div>
+      </div>
+
+      <!-- ====== Tab 5: 投稿选刊 ====== -->
+      <div v-if="tab==='journal'" class="func-panel">
+        <div class="panel-split">
+          <div class="panel-left">
+            <div class="panel-title">投稿选刊推荐</div>
+            <el-input v-model="journalTitle" placeholder="论文标题" size="small" />
+            <el-input v-model="journalField" placeholder="研究领域" size="small" style="margin-top:6px" />
+            <el-input v-model="journalAbstract" type="textarea" :rows="4" placeholder="论文摘要（可选）" size="small" style="margin-top:6px" />
+            <el-button type="primary" size="small" style="width:100%;margin-top:6px" @click="onApiRequired('维普期刊数据库','super.cqvip.com')" :disabled="!journalTitle">推荐期刊</el-button>
+          </div>
+          <div class="panel-right"><div class="result-box"><div class="empty">此功能需要调用维普期刊数据库API<br><br>提供期刊影响因子、审稿周期、录用率查询<br><br>请在系统管理中配置API Key</div></div></div>
         </div>
       </div>
     </div>
@@ -158,376 +131,102 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted } from 'vue'
-import { 
-  Reading, Cpu, UserFilled, Promotion, CopyDocument, Refresh, Delete, UploadFilled,
-  EditPen, Document, DataAnalysis, Notebook, MagicStick, Files, Connection, TrendCharts
-} from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import { apiGet, apiPost, apiPut, apiUpload } from '../api.js'
+import { ref, computed, onMounted, nextTick } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { apiGet, apiDelete, apiPost } from '../api.js'
 import * as Icons from '@element-plus/icons-vue'
 import { marked } from 'marked'
-
+import { Plus, UploadFilled, MoreFilled, EditPen, Download, Delete, MagicStick, TrendCharts, Reading, Search, Promotion, Document, DataAnalysis, Files, Connection, Notebook } from '@element-plus/icons-vue'
 const iconMap = { ...Icons }
-const skillList = ref([])
-const skillId = ref('')
 
-// ====== 功能插件定义 ======
-const writingPlugins = [
-  { id: 'topics', label: '课题选题生成', icon: MagicStick, hint: '输入研究方向，AI 生成规范的学术选题', placeholder: '请输入您的研究方向或领域，例如：基层党建数字化转型、船舶智能制造...' },
-  { id: 'evaluate', label: '选题测评', icon: DataAnalysis, hint: '对已有选题进行四维度综合评估', placeholder: '请输入您要评估的选题名称' },
-  { id: 'outline', label: '论文大纲生成', icon: Document, hint: '为研究课题生成完整的论文大纲', placeholder: '请输入论文主题，如：国有企业数字化转型路径研究' },
-]
+const tabs = [{id:'chat',label:'学术对话',icon:TrendCharts},{id:'read',label:'论文阅读',icon:Reading},{id:'write',label:'学术写作',icon:EditPen},{id:'search',label:'文献检索',icon:Search},{id:'journal',label:'投稿选刊',icon:Promotion}]
+const tab = ref('chat'), model = ref('deepseek'), models = ['deepseek','qwen','zhipu','kimi','minimax','doubao']
 
-const paperPlugins = [
-  { id: 'review', label: '文献综述', icon: Files, hint: '基于主题生成规范的文献综述', placeholder: '请输入文献综述的主题或关键词' },
-  { id: 'translate', label: '论文翻译', icon: Connection, hint: '学术论文中英互译，保持专业术语', placeholder: '请粘贴需要翻译的文本，或描述翻译需求' },
-  { id: 'polish', label: '论文润色', icon: EditPen, hint: '优化论文表达，修正语法错误', placeholder: '请粘贴需要润色的论文段落' },
-]
+// Functions
+const paperFuncs = [{id:'read',label:'论文解读',icon:Reading,placeholder:'请粘贴论文内容进行深度解读'},{id:'review',label:'论文评审',icon:Document,placeholder:'请粘贴论文进行学术评审'},{id:'translate',label:'论文翻译',icon:Connection,placeholder:'请粘贴需要翻译的学术文本'}]
+const writeFuncs = [{id:'topics',label:'选题生成',icon:MagicStick,placeholder:'请输入研究方向'},{id:'paper',label:'一键范文',icon:Notebook,placeholder:'请输入论文课题名称'},{id:'outline',label:'论文大纲',icon:Document,placeholder:'请输入论文课题'},{id:'review_lit',label:'文献综述',icon:Files,placeholder:'请输入综述主题'},{id:'polish',label:'文本润色',icon:EditPen,placeholder:'请粘贴需要润色的文本'}]
+const toolFuncs = [{id:'evaluate',label:'选题测评',icon:DataAnalysis,placeholder:'请输入要评估的选题名称'},{id:'search',label:'学术搜索',icon:Search,placeholder:'请输入搜索主题'},{id:'trend',label:'趋势分析',icon:TrendCharts,placeholder:'请输入研究领域'}]
 
-const auxPlugins = [
-  { id: 'chat', label: '学术对话', icon: TrendCharts, hint: '自由提问，AI 助手提供学术建议', placeholder: '请输入您的研究问题...' },
-  { id: 'note', label: '会议纪要', icon: Notebook, hint: '将研究讨论转为结构化纪要', placeholder: '请粘贴会议或讨论的文字记录' },
-]
+// Chat
+const chatInput = ref(''), chatMsgs = ref([]), chatLoading = ref(false), chatBody = ref(null), skillId = ref(''), skillList = ref([]), convs = ref([]), convId = ref('new')
 
-const allPlugins = [...writingPlugins, ...paperPlugins, ...auxPlugins]
+onMounted(async ()=>{const [s,c]=await Promise.all([apiGet('/api/skills'),apiGet('/api/research-chat/conversations')]);if(s)skillList.value=s;if(c)convs.value=c.map(x=>({id:x.id,title:x.title||'对话',time:x.created_at?.slice(0,10)||''}))})
+function newConv(){convId.value='new';chatMsgs.value=[]}
+async function loadConv(c){convId.value=c.id;const d=await apiGet(`/api/research-chat/conversations/${c.id}/messages`);chatMsgs.value=d?d.map(m=>({role:m.role,content:m.content})):[]}
+async function refreshConvs(){const c=await apiGet('/api/research-chat/conversations');if(c)convs.value=c.map(x=>({id:x.id,title:x.title||'对话',time:x.created_at?.slice(0,10)||''}))}
+async function histAction(cmd,c){if(cmd==='rename'){try{const{value}=await import('element-plus').then(m=>m.ElMessageBox.prompt('新名称','重命名',{inputValue:c.title}));if(value?.trim()){const t=localStorage.getItem('csic_token');const B=location.port==='5173'?'http://localhost:8000':'';await fetch(`${B}/api/research-chat/conversations/${c.id}/rename`,{method:'PUT',headers:{'Content-Type':'application/json',Authorization:`Bearer ${t}`},body:JSON.stringify({title:value.trim()})});c.title=value.trim();ElMessage.success('已重命名')}}catch{}}else if(cmd==='delete'){await apiDelete(`/api/research-chat/conversations/${c.id}`);convs.value=convs.value.filter(x=>x.id!==c.id);if(convId.value===c.id){convId.value='new';chatMsgs.value=[]}}else if(cmd==='docx'){ElMessage.info('生成docx...');const t=localStorage.getItem('csic_token');const B=location.port==='5173'?'http://localhost:8000':'';try{const r=await fetch(`${B}/api/export/docx`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${t}`},body:JSON.stringify({conversation_id:c.id})});if(r.ok){const b=await r.blob();const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`${c.title||'对话'}.docx`;a.click()}}catch(e){}}else if(cmd==='skill'){const d=await apiGet(`/api/research-chat/conversations/${c.id}/messages`);const content=d?d.map(m=>`### ${m.role}\n${m.content}`).join('\n\n'):c.title;await apiPost('/api/skills',{name:c.title||'新技能',description:'对话提炼',category:'科研',icon:'MagicStick',color:'#1677ff',prompt:`基于以下对话内容：\n\n${content.slice(0,3000)}`});ElMessage.success('已整理')}}
 
-const quickStarts = [
-  { id: 'q1', label: '帮我生成3个党建研究选题', prompt: '请帮我生成3个关于新时代党建工作的研究选题' },
-  { id: 'q2', label: '船舶工业高质量发展选题', prompt: '请为船舶工业高质量发展领域生成4个学术选题' },
-  { id: 'q3', label: '选题测评示例', prompt: '请评估选题"人工智能赋能基层党建创新路径研究"的学术价值' },
-  { id: 'q4', label: '文献综述示例', prompt: '请为主题"数字政府建设与治理现代化"撰写文献综述' },
-]
+async function chatSend(){const t=chatInput.value.trim();if(!t||chatLoading.value)return;chatMsgs.value.push({role:'user',content:t});chatInput.value='';chatLoading.value=true;chatMsgs.value.push({role:'assistant',content:''});const last=chatMsgs.value[chatMsgs.value.length-1];const token=localStorage.getItem('csic_token');const B=location.port==='5173'?'http://localhost:8000':'';try{const r=await fetch(`${B}/api/research-chat/send`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({query:t,model:model.value,skill_id:skillId.value||'',conversation_id:convId.value})});const reader=r.body.getReader();const dec=new TextDecoder();while(true){const{done,value}=await reader.read();if(done)break;for(const l of dec.decode(value,{stream:true}).split('\n')){if(l.startsWith('data: ')){const d=l.slice(6);if(d==='[DONE]')continue;try{const j=JSON.parse(d);if(j.content)last.content+=j.content;if(j.conversation_id&&convId.value==='new'){convId.value=j.conversation_id;refreshConvs()}}catch{}}}}; }catch(e){last.content=`[错误] ${e.message}`}finally{chatLoading.value=false;await nextTick();if(chatBody.value)chatBody.value.scrollTop=chatBody.value.scrollHeight}}
 
-// ====== 状态 ======
-const messages = ref([])
-const inputText = ref('')
-const activePlugin = ref(null)
-const loading = ref(false)
-const selectedModel = ref('deepseek')
-const temperature = ref(0.7)
-const msgBox = ref(null)
+async function handleUpload(file){const fd=new FormData();fd.append('file',file);chatMsgs.value.push({role:'user',content:`📎 ${file.name}`});chatLoading.value=true;const t=localStorage.getItem('csic_token');const B=location.port==='5173'?'http://localhost:8000':'';try{const r=await fetch(`${B}/api/files/upload`,{method:'POST',headers:{Authorization:`Bearer ${t}`},body:fd});const d=await r.json();chatMsgs.value.push({role:'assistant',content:`已上传: ${(d.result||'').slice(0,1500)}`})}catch(e){chatMsgs.value.push({role:'assistant',content:'[上传失败]'})}finally{chatLoading.value=false};return false}
+function focusInput(){nextTick(()=>{const ta=document.querySelector('.chat-input-wrap textarea');if(ta)ta.focus()})}
 
-// 加载技能列表
-onMounted(async () => {
-  const s = await apiGet('/api/skills')
-  if (s) skillList.value = s
-})
+// Tab 2: Read
+const readMode=ref('read'),paperText=ref(''),arxivUrl=ref(''),readResult=ref(''),readLoading=ref(false),readBody=ref(null)
+async function uploadPaper(file){const fd=new FormData();fd.append('file',file);fd.append('func',readMode.value);readResult.value='';readLoading.value=true;const t=localStorage.getItem('csic_token');const B=location.port==='5173'?'http://localhost:8000':'';try{const r=await fetch(`${B}/api/research/upload-paper`,{method:'POST',headers:{Authorization:`Bearer ${t}`},body:fd});await sseRead(r)}catch(e){readResult.value=`[错误] ${e.message}`}finally{readLoading.value=false};return false}
+async function analyzePaper(){const fd=new FormData();fd.append('query',paperText.value);fd.append('model',model.value);const ep=readMode.value==='review'?'/api/research/paper-review':'/api/research/paper-read';readResult.value='';readLoading.value=true;const t=localStorage.getItem('csic_token');const B=location.port==='5173'?'http://localhost:8000':'';try{const r=await fetch(`${B}${ep}`,{method:'POST',headers:{Authorization:`Bearer ${t}`},body:fd});await sseRead(r)}catch(e){readResult.value=`[错误] ${e.message}`}finally{readLoading.value=false}}
+async function sseRead(r){const reader=r.body.getReader();const dec=new TextDecoder();while(true){const{done,value}=await reader.read();if(done)break;for(const l of dec.decode(value,{stream:true}).split('\n')){if(l.startsWith('data: ')){const d=l.slice(6);if(d==='[DONE]')continue;try{readResult.value+=JSON.parse(d).content}catch{}}}}}
 
-// ====== 计算属性 ======
-const pluginLabel = computed(() => {
-  const p = allPlugins.find(p => p.id === activePlugin.value)
-  return p ? p.label : ''
-})
-const pluginHint = computed(() => {
-  const p = allPlugins.find(p => p.id === activePlugin.value)
-  return p ? p.hint : ''
-})
-const inputPlaceholder = computed(() => {
-  const p = allPlugins.find(p => p.id === activePlugin.value)
-  return p ? p.placeholder : '输入您的研究问题，按 Ctrl+Enter 发送...'
-})
+// Tab 3: Write
+const writeTask=ref('topics'),writeInput=ref(''),writeResult=ref(''),writeLoading=ref(false),writeBody=ref(null)
+async function doWrite(){const ep=writeTask.value==='paper'?'/api/research/generate-paper':'/api/research/stream';writeResult.value='';writeLoading.value=true;const t=localStorage.getItem('csic_token');const B=location.port==='5173'?'http://localhost:8000':'';try{const r=await fetch(`${B}${ep}`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${t}`},body:JSON.stringify({query:writeInput.value,model:model.value,function:writeTask.value})});const reader=r.body.getReader();const dec=new TextDecoder();while(true){const{done,value}=await reader.read();if(done)break;for(const l of dec.decode(value,{stream:true}).split('\n')){if(l.startsWith('data: ')){const d=l.slice(6);if(d==='[DONE]')continue;try{writeResult.value+=JSON.parse(d).content}catch{}}}}}catch(e){writeResult.value=`[错误] ${e.message}`}finally{writeLoading.value=false}}
 
-// ====== 激活插件 ======
-function activatePlugin(plugin) {
-  activePlugin.value = plugin.id
-  inputText.value = ''
-}
+// Tab 4 & 5: Search & Journal
+const searchQuery=ref(''),searchType=ref('search'),journalTitle=ref(''),journalField=ref(''),journalAbstract=ref('')
 
-// ====== 快速开始 ======
-function quickStart(q) {
-  inputText.value = q.prompt
-  activePlugin.value = null
-  sendMessage()
-}
+function onApiRequired(name, url){ElMessageBox.alert(`此功能需要调用外部学术API。请在系统管理 → API配置中配置以下API Key后使用：\n\n📡 ${name}\n🔗 ${url}\n\n配置完成后刷新页面即可使用。`,'需要配置API Key',{confirmButtonText:'前往系统设置',callback:()=>window.open('/#/workspace/admin','_self')})}
 
-// ====== 发送消息 ======
-async function sendMessage() {
-  const text = inputText.value.trim()
-  if (!text || loading.value) return
-
-  const plugin = allPlugins.find(p => p.id === activePlugin.value)
-  const title = plugin ? plugin.label : '学术助手'
-
-  messages.value.push({ role: 'user', content: text, title })
-  inputText.value = ''
-  loading.value = true
-  await nextTick(); scrollBottom()
-
-  // 用 SSE 流式获取回复
-  messages.value.push({ role: 'assistant', content: '' })
-  const lastMsg = messages.value[messages.value.length - 1]
-
-  try {
-    const token = localStorage.getItem('csic_token')
-    const API_BASE = window.location.port === '5173' ? 'http://localhost:8000' : ''
-    const plugin = allPlugins.find(p => p.id === activePlugin.value)
-    
-    // 构造查询：如果有插件则带上插件名作为上下文
-    let query = text
-    if (plugin) {
-      query = `【${plugin.label}】${text}`
-    }
-
-    const resp = await fetch(`${API_BASE}/api/chat/dify-chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ query, model: selectedModel.value })
-    })
-    const reader = resp.body.getReader()
-    const decoder = new TextDecoder()
-    let full = ''
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      const chunk = decoder.decode(value, { stream: true })
-      for (const line of chunk.split('\n')) {
-        if (line.startsWith('data: ')) {
-          const d = line.slice(6)
-          if (d === '[DONE]') continue
-          try {
-            const json = JSON.parse(d)
-            if (json.content) { full += json.content; lastMsg.content = full }
-          } catch {}
-        }
-      }
-    }
-  } catch (e) {
-    lastMsg.content = `[错误] ${e.message || '请求失败'}`
-  } finally {
-    loading.value = false
-    await nextTick(); scrollBottom()
-  }
-}
-
-function extractResult(res, pluginId) {
-  if (!res) return '抱歉，未获得有效回复'
-  if (typeof res === 'string') return res
-  if (res.result) return res.result
-  if (res.answer) return res.answer
-  if (res.data?.result) return res.data.result
-  if (res.topics && Array.isArray(res.topics)) {
-    return res.topics.map((t, i) =>
-      `**${i + 1}. ${t.title}**  \n${t.description || ''}  \n领域: ${t.field || '综合'} | 可行性: ${t.feasibility || '?'} | 创新性: ${t.innovation || '?'}`
-    ).join('\n\n---\n\n')
-  }
-  if (res.dimensions) {
-    const dims = res.dimensions.map(d =>
-      `**${d.name || d.label}**: ${d.score || d.academic_value?.score}分 — ${d.detail || ''}`
-    ).join('\n')
-    return `${dims}\n\n**综合建议**: ${res.advice || '无'}`
-  }
-  return res.message || res.detail || JSON.stringify(res).slice(0, 500)
-}
-
-function getEndpoint(pluginId) {
-  const map = {
-    topics: '/api/research/generate',
-    evaluate: '/api/research/evaluate',
-    outline: '/api/academic/outline',
-    review: '/api/academic/review',
-    translate: '/api/academic/translate',
-    polish: '/api/academic/polish',
-  }
-  return map[pluginId] || '/api/chat/blocking'
-}
-
-function getRequestBody(pluginId, text) {
-  const map = {
-    topics: { input: text },
-    evaluate: { title: text },
-    outline: { topic: text },
-    review: { topic: text },
-    translate: { text, target_lang: 'zh' },
-    polish: { text },
-  }
-  return map[pluginId] || { query: text }
-}
-
-// ====== 重新生成 ======
-function regenerate(msg) {
-  const idx = messages.value.indexOf(msg)
-  if (idx > 0) {
-    const userMsg = messages.value[idx - 1]
-    inputText.value = userMsg.content
-    messages.value = messages.value.slice(0, idx - 1)
-    sendMessage()
-  }
-}
-
-// ====== 文件上传 ======
-async function handleUpload(file) {
-  const formData = new FormData()
-  formData.append('file', file)
-  
-  messages.value.push({ role: 'user', content: `📎 上传文件: ${file.name}`, title: '文件上传' })
-  loading.value = true
-  
-  try {
-    const data = await apiUpload('/api/files/upload', formData)
-    messages.value.push({ role: 'assistant', content: `文件已上传并解析：\n\n${data.result || data.summary || '文件处理完成'}` })
-  } catch (e) {
-    messages.value.push({ role: 'assistant', content: `[文件上传失败: ${e.message}]` })
-  } finally {
-    loading.value = false
-  }
-  return false
-}
-
-// ====== 工具 ======
-function clearChat() {
-  messages.value = []
-  activePlugin.value = null
-}
-function copyText(text) {
-  navigator.clipboard.writeText(text).then(() => ElMessage.success('已复制'))
-}
-function renderMarkdown(text) {
-  if (!text) return ''
-  try {
-    return marked.parse(text)
-  } catch {
-    return text
-  }
-}
-function scrollBottom() {
-  nextTick(() => {
-    if (msgBox.value) msgBox.value.scrollTop = msgBox.value.scrollHeight
-  })
-}
+function render(t){if(!t)return'';try{return marked.parse(t.replace(/\n{3,}/g,'\n\n'))}catch{return t}}
 </script>
 
 <style scoped>
-.academic-workspace { min-height: calc(100vh - 100px); }
+.r-topbar{display:flex;align-items:center;padding:10px 16px;background:#fff;border-bottom:1px solid #e5e7eb;gap:16px}
+.r-title{font-size:15px;font-weight:700;color:#1f2937}
+.r-tabs{display:flex;align-items:center;gap:0}
+.r-tab{display:flex;align-items:center;gap:6px;padding:8px 18px;cursor:pointer;font-size:13px;font-weight:500;color:#6b7280;border-bottom:3px solid transparent;transition:all .15s;margin-bottom:-1px}
+.r-tab:hover{color:#1677ff}
+.r-tab.active{color:#1677ff;font-weight:600;border-bottom-color:#1677ff}
+.r-body{height:calc(100vh - 200px);overflow:hidden}
 
-/* ====== Workspace Container ====== */
-.workspace-container {
-  display: flex; gap: 0; height: calc(100vh - 180px);
-  margin: 12px 16px 0;
-  background: #fff; border-radius: 12px; border: 1px solid var(--border-color, #e5e7eb);
-  overflow: hidden;
-}
+/* Chat */
+.full-chat{display:flex;height:100%}
+.chat-side{width:180px;min-width:180px;background:#f8f9fb;border-right:1px solid #e5e7eb;padding:8px;display:flex;flex-direction:column}
+.func-group-label{font-size:10px;color:#bbb;text-transform:uppercase;font-weight:600;padding:2px 4px}
+.side-func{display:flex;align-items:center;gap:4px;padding:4px 6px;border-radius:4px;cursor:pointer;font-size:11px;color:#374151;margin-bottom:1px}
+.side-func:hover{background:#e8ecf1}
+.new-btn{width:100%;margin-bottom:6px;margin-top:4px}
+.hist-list{flex:1;overflow-y:auto}
+.hist-item{padding:6px 8px;border-radius:6px;cursor:pointer;font-size:12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:2px}
+.hist-title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#374151}
+.hist-item:hover,.hist-item.active{background:#f0f5ff}
+.hist-more{opacity:0}.hist-item:hover .hist-more{opacity:1}
+.chat-main{flex:1;display:flex;flex-direction:column;min-width:0}
+.chat-body{flex:1;overflow-y:auto;padding:10px 20px}
+.msg{margin-bottom:10px}.msg.user{text-align:right}
+.msg-text{display:inline-block;max-width:80%;padding:7px 12px;border-radius:10px;font-size:13px;line-height:1.7;word-break:break-word}
+.msg.user .msg-text{background:#1677ff;color:#fff}.msg.assistant .msg-text{background:#f3f4f6;color:#1f2937}
+.chat-input-wrap{padding:8px 12px;border-top:1px solid #e5e7eb;display:flex;gap:6px;align-items:center}
+.chat-input-wrap :deep(.el-textarea__inner){border-radius:8px;font-size:13px}
+.chat-skill{width:150px;min-width:150px;background:#f8f9fb;border-left:1px solid #e5e7eb;padding:8px;overflow:hidden;display:flex;flex-direction:column}
+.skill-label{font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase;margin-bottom:6px}
+.skill-list{flex:1;overflow-y:auto}
+.skill-row{display:flex;align-items:center;gap:4px;padding:4px 6px;border-radius:4px;cursor:pointer;font-size:11px;color:#374151;margin-bottom:2px}
+.skill-row:hover{background:#e8ecf1}.skill-row.active{background:#1677ff12;color:#1677ff}
+.skill-row span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-/* ====== LEFT: Plugin Panel ====== */
-.plugin-panel {
-  width: 200px; min-width: 200px; 
-  background: #f8f9fb; border-right: 1px solid var(--border-color, #e5e7eb);
-  padding: 16px 12px; overflow-y: auto;
-}
-.panel-title {
-  font-size: 12px; color: #94a3b8; font-weight: 600; text-transform: uppercase;
-  letter-spacing: 1px; margin-bottom: 12px; padding: 0 4px;
-}
-.plugin-group { margin-bottom: 16px; }
-.group-label {
-  font-size: 11px; color: #94a3b8; text-transform: uppercase; font-weight: 600;
-  padding: 0 4px; margin-bottom: 6px; letter-spacing: 0.5px;
-}
-.plugin-btn {
-  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
-  border-radius: 8px; cursor: pointer; font-size: 13px; color: #374151;
-  transition: all .15s; margin-bottom: 2px;
-}
-.plugin-btn:hover { background: #e8ecf1; }
-.plugin-btn.active { background: #1677ff12; color: #1677ff; font-weight: 600; }
-
-.panel-divider { height: 1px; background: #e5e7eb; margin: 16px 0; }
-
-.model-selector { margin-bottom: 14px; }
-.model-label {
-  font-size: 12px; color: #94a3b8; font-weight: 600; display: block; margin-bottom: 4px;
-}
-.param-row {
-  font-size: 12px; color: #6b7280; margin-top: 4px;
-}
-.param-row :deep(.el-slider__input) { width: 50px; }
-
-/* ====== RIGHT: Chat Area ====== */
-.chat-area {
-  flex: 1; display: flex; flex-direction: column; min-width: 0;
-}
-
-/* Messages */
-.chat-messages {
-  flex: 1; overflow-y: auto; padding: 20px 24px;
-}
-.chat-messages::-webkit-scrollbar { width: 6px; }
-.chat-messages::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 3px; }
-
-.welcome-area {
-  text-align: center; padding: 60px 20px;
-}
-.welcome-icon { color: #1677ff; margin-bottom: 16px; opacity: 0.6; }
-.welcome-area h3 { font-size: 20px; color: #1f2937; margin: 0 0 8px; }
-.welcome-area p { color: #94a3b8; font-size: 14px; margin: 0 0 20px; }
-.quick-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-
-.msg-item { display: flex; gap: 12px; margin-bottom: 20px; }
-.msg-item.user { flex-direction: row-reverse; }
-.msg-avatar {
-  width: 32px; height: 32px; border-radius: 8px; display: flex;
-  align-items: center; justify-content: center; flex-shrink: 0;
-}
-.msg-item.user .msg-avatar { background: #1677ff12; color: #1677ff; }
-.msg-item.assistant .msg-avatar { background: #10b98112; color: #10b981; }
-
-.msg-content { max-width: 75%; }
-.msg-item.user .msg-content { text-align: right; }
-.msg-text {
-  background: #f8f9fb; border-radius: 12px; padding: 12px 16px;
-  font-size: 14px; line-height: 1.7; color: #1f2937;
-}
-.msg-item.user .msg-text { background: #1677ff; color: #fff; }
-.msg-text :deep(h1), .msg-text :deep(h2), .msg-text :deep(h3) { margin: 8px 0 4px; font-size: 16px; color: inherit; }
-.msg-text :deep(p) { margin: 4px 0; }
-.msg-text :deep(ul), .msg-text :deep(ol) { margin: 4px 0; padding-left: 18px; }
-.msg-text :deep(code) { background: #e5e7eb44; padding: 1px 4px; border-radius: 3px; font-size: 13px; }
-.msg-text :deep(pre) { background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 8px; overflow-x: auto; font-size: 12px; margin: 8px 0; }
-.msg-text :deep(blockquote) { border-left: 3px solid #1677ff; margin: 4px 0; padding: 4px 12px; color: #6b7280; }
-
-.msg-ops { margin-top: 6px; display: flex; gap: 4px; opacity: 0.5; }
-.msg-ops:hover { opacity: 1; }
-
-.thinking-dots { display: flex; gap: 6px; padding: 12px 16px; }
-.thinking-dots span {
-  width: 8px; height: 8px; border-radius: 50%; background: #94a3b8;
-  animation: thinking 1.4s infinite ease-in-out both;
-}
-.thinking-dots span:nth-child(1) { animation-delay: -0.32s; }
-.thinking-dots span:nth-child(2) { animation-delay: -0.16s; }
-@keyframes thinking {
-  0%, 80%, 100% { transform: scale(0); }
-  40% { transform: scale(1); }
-}
-
-/* ====== Input Area ====== */
-.input-area { border-top: 1px solid var(--border-color, #e5e7eb); padding: 12px 20px 16px; }
-.plugin-hint { margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
-.hint-text { font-size: 12px; color: #94a3b8; }
-
-.input-row :deep(.el-textarea__inner) {
-  border-radius: 10px; font-size: 14px; line-height: 1.6;
-  background: #f8f9fb; border-color: #e5e7eb;
-}
-.input-row :deep(.el-textarea__inner:focus) { border-color: #1677ff; }
-
-.action-bar {
-  display: flex; justify-content: space-between; align-items: center; margin-top: 10px;
-}
-.left-actions, .right-actions { display: flex; align-items: center; gap: 8px; }
-
-/* ====== Responsive ====== */
-/* 右栏技能 */
-.skill-sidebar { width:150px; min-width:150px; background:#f8f9fb; border-left:1px solid #e5e7eb; padding:16px 10px; }
-.skill-list { display:flex; flex-direction:column; gap:3px; }
-.skill-item { display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:6px; cursor:pointer; font-size:12px; color:#374151; }
-.skill-item:hover { background:#e8ecf1; }
-.skill-item.active { background:#1677ff12; color:#1677ff; font-weight:600; }
-.skill-item span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
-@media (max-width: 768px) {
-  .plugin-panel { display: none; }
-  .workspace-container { margin: 0; border-radius: 0; height: calc(100vh - 160px); }
-  .msg-content { max-width: 90%; }
-}
+/* Function panels (Tab 2-5) */
+.func-panel{height:100%}
+.panel-split{display:flex;height:100%}
+.panel-left{width:260px;min-width:260px;padding:16px;border-right:1px solid #e5e7eb;overflow-y:auto;background:#fafafa}
+.panel-title{font-size:13px;font-weight:600;color:#374151;margin-bottom:8px}
+.panel-right{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.result-box{flex:1;overflow-y:auto;padding:16px 20px}
+.result-text{font-size:13px;line-height:1.8;color:#1f2937}
+.result-text :deep(h1),.result-text :deep(h2),.result-text :deep(h3){margin:8px 0 4px;font-size:15px}
+.result-text :deep(p){margin:4px 0}.result-text :deep(ul),.result-text :deep(ol){margin:4px 0;padding-left:18px}
+.result-text :deep(pre){background:#1e293b;color:#e2e8f0;padding:6px 10px;border-radius:6px;overflow-x:auto;font-size:12px}.result-text :deep(code){background:#e5e7eb;padding:1px 3px;border-radius:3px;font-size:12px}
+.empty{text-align:center;padding:60px;color:#bbb}
+.write-task{display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:6px;cursor:pointer;font-size:12px;color:#374151;margin-bottom:3px}
+.write-task:hover{background:#e8ecf1}.write-task.active{background:#1677ff12;color:#1677ff;font-weight:600}
+@media(max-width:768px){.panel-split{flex-direction:column}.panel-left{width:100%;border-right:0;border-bottom:1px solid #e5e7eb}.chat-side,.chat-skill{display:none}}
 </style>

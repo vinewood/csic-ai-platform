@@ -1,346 +1,181 @@
-"""科研管理路由"""
+"""科研工作台路由 — AMiner + 科创助手 能力映射 gpt_academic"""
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+import json
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Optional, Any
-from datetime import datetime
-
-from ..database import get_db
-from ..models import User, ResearchTopic, Project
-from ..schemas import MessageResponse
+from typing import Optional
 from ..auth import get_current_user
 
 router = APIRouter(prefix="/api/research", tags=["科研"])
 
+class ResearchQuery(BaseModel):
+    query: str
+    model: str = "deepseek"
+    function: Optional[str] = None
 
-# ---- Request / Response Schemas ----
-
-class GenerateRequest(BaseModel):
-    input: str
-    depth: str = "标准"
-
-
-class EvaluateRequest(BaseModel):
-    title: str
-
-
-class ProjectCreate(BaseModel):
-    name: str
-    description: str = ""
-    status: str = "进行中"
-    progress: int = 0
-    members_count: int = 1
-    papers_count: int = 0
-    color: str = "#1677ff"
-
-
-class ProjectUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    status: Optional[str] = None
-    progress: Optional[int] = None
-    members_count: Optional[int] = None
-    papers_count: Optional[int] = None
-    color: Optional[str] = None
-
-
-# ---- Helper ----
-
-async def _get_current_user_id(token_payload: dict, db: AsyncSession) -> int:
-    username = token_payload.get("sub")
-    result = await db.execute(select(User).where(User.username == username))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=401, detail="用户不存在")
-    return user.id
-
-
-# ---- 科研选题（调用 gpt_academic 引擎）----
-
-async def _academic_generate(prompt: str) -> str:
-    """调用 gpt_academic 进行学术文本生成"""
-    try:
-        sys.path.insert(0, "/opt/gpt_academic")
-        from crazy_functional import get_crazy_functionals
-        funcs = get_crazy_functionals()
-        if "学术选题生成" in funcs:
-            result = funcs["学术选题生成"](prompt)
-            return result
-    except Exception:
-        pass
-    # fallback: 调用本地 DeepSeek API
-    from ..services.dify_service import MODEL_ENDPOINTS
-    import httpx, json
+async def _ai_stream(prompt: str, model: str = "deepseek"):
+    """SSE 流式调用 DeepSeek"""
+    import httpx
     from ..config import get_api_config
-    api_key = get_api_config("deepseek")
-    if api_key:
-        try:
-            resp = httpx.post(
-                "https://api.deepseek.com/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json={"model": "deepseek-chat", "messages": [{"role": "user", "content": prompt}], "temperature": 0.7},
-                timeout=30
-            )
-            if resp.status_code == 200:
-                return resp.json()["choices"][0]["message"]["content"]
-        except Exception:
-            pass
-    return ""
+    key = get_api_config(model)
+    if not key:
+        yield f"data: {json.dumps({'content':f'[请先配置 {model} API Key]'})}\n\n"
+        yield "data: [DONE]\n\n"; return
+    
+    async with httpx.AsyncClient(timeout=120) as c:
+        async with c.stream("POST", "https://api.deepseek.com/chat/completions",
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            json={"model":"deepseek-chat","messages":[{"role":"user","content":prompt}],"temperature":0.7,"stream":True}
+        ) as resp:
+            async for line in resp.aiter_lines():
+                if line.startswith("data: "):
+                    d = line[6:]
+                    if d == "[DONE]": break
+                    try:
+                        chunk = json.loads(d)
+                        c = chunk["choices"][0]["delta"].get("content","")
+                        if c: yield f"data: {json.dumps({'content':c})}\n\n"
+                    except: pass
+    yield "data: [DONE]\n\n"
 
-@router.post("/generate")
-async def generate_topics(
-    req: GenerateRequest,
-    db: AsyncSession = Depends(get_db),
-    token: dict = Depends(get_current_user),
-):
-    user_id = await _get_current_user_id(token, db)
-    depth_map = {"浅度": 3, "标准": 4, "深度": 5}
-    count = depth_map.get(req.depth, 4)
+# ====== 学术搜索 ======
+@router.post("/search")
+async def academic_search(query: str = Form(...), model: str = Form("deepseek"), current_user: dict = Depends(get_current_user)):
+    """AMiner风格AI增强学术搜索"""
+    prompt = f"""你是学术搜索专家。请搜索并分析以下研究课题，提供：
+1. **研究概况** - 该领域当前研究热点和趋势（2-3段）
+2. **关键文献** - 5篇该领域重要的代表性论文（标题、作者、年份、核心贡献）
+3. **主要学者** - 3-5位该领域的知名学者及其研究方向
+4. **推荐关键词** - 5个进一步检索的关键词
+5. **研究方向建议** - 2-3个有潜力的研究方向
 
-    # 用 gpt_academic 生成选题
-    prompt = f"请生成{count}个关于「{req.input}」的科研选题，每个选题包含：标题、描述、研究领域、可行性评分(0-100)、创新性评分(0-100)。以JSON数组格式返回。"
-    ai_response = await _academic_generate(prompt)
+搜索主题：{query}"""
+    return StreamingResponse(_ai_stream(prompt, model), media_type="text/event-stream",
+        headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
 
-    topics = []
-    if ai_response:
-        try:
-            import json as _json
-            ai_topics = _json.loads(ai_response)
-            for t in ai_topics:
-                topic = ResearchTopic(
-                    title=t.get("标题", f"{req.input}相关选题"),
-                    description=t.get("描述", ""),
-                    field=t.get("研究领域", "综合"),
-                    feasibility=t.get("可行性评分", 75),
-                    innovation=t.get("创新性评分", 70),
-                    user_id=user_id,
-                )
-                db.add(topic)
-                topics.append(topic)
-        except Exception:
-            pass
+# ====== 论文快速阅读 ======
+@router.post("/paper-read")
+async def paper_read(query: str = Form(...), model: str = Form("deepseek"), current_user: dict = Depends(get_current_user)):
+    """AMiner AI阅读风格：深度解读论文"""
+    prompt = f"""你是学术论文审读专家。请对以下论文内容进行结构化解读：
 
-    if not topics:
-        mock_topics = [
-            {"title": f"基于{req.input}的智能分析方法研究", "description": f"探索{req.input}领域的前沿智能分析方法，结合深度学习技术提升分析精度。", "field": ["人工智能","计算机视觉","自然语言处理","数据科学"][i % 4], "feasibility": 75 + i * 5, "innovation": 70 + i * 5}
-            for i in range(count)
-        ]
-        for t in mock_topics:
-            topic = ResearchTopic(**t, user_id=user_id)
-            db.add(topic)
-            topics.append(topic)
+{query[:6000]}
 
-    await db.commit()
-    for t in topics:
-        await db.refresh(t)
+请按以下格式输出：
+1. **一句话概括** - 用一句话说明这篇论文做了什么
+2. **研究背景与动机** - 为什么做这个研究
+3. **核心贡献** - 主要创新点（3个）
+4. **研究方法** - 技术路线简述
+5. **实验与结果** - 关键发现
+6. **局限性** - 作者提到的不足
+7. **未来方向** - 可继续深入的方向"""
+    return StreamingResponse(_ai_stream(prompt, model), media_type="text/event-stream",
+        headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
 
-    return {"topics": [
-        {"id": t.id, "title": t.title, "description": t.description, "field": t.field,
-         "feasibility": t.feasibility, "innovation": t.innovation, "created_at": str(t.created_at or "")}
-        for t in topics
-    ]}
+# ====== 论文评审 ======
+@router.post("/paper-review")
+async def paper_review(query: str = Form(...), model: str = Form("deepseek"), current_user: dict = Depends(get_current_user)):
+    """模拟学术审稿人评审论文"""
+    prompt = f"""你是资深学术审稿人。请对以下论文进行评审：
 
+{query[:5000]}
 
-@router.post("/evaluate")
-async def evaluate_topic(
-    req: EvaluateRequest,
-    db: AsyncSession = Depends(get_db),
-    token: dict = Depends(get_current_user),
-):
-    user_id = await _get_current_user_id(token, db)
+请从以下维度评审：
+1. **总体评价** - 接收/修改后接收/拒稿，并说明理由
+2. **创新性** - 评分(1-10)及评价
+3. **方法严谨性** - 评价实验设计和数据分析
+4. **写作质量** - 结构和表达评价
+5. **具体修改建议** - 5条具体修改意见
+6. **是否推荐引用** - 推荐引用的相关论文"""
+    return StreamingResponse(_ai_stream(prompt, model), media_type="text/event-stream",
+        headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
 
-    result = await db.execute(
-        select(ResearchTopic)
-        .where(ResearchTopic.title == req.title, ResearchTopic.user_id == user_id)
-        .order_by(ResearchTopic.id.desc())
-    )
-    topic = result.scalar_one_or_none()
-    if not topic:
-        raise HTTPException(status_code=404, detail="选题不存在")
+# ====== 一键范文生成 ======
+@router.post("/generate-paper")
+async def generate_paper(topic: str = Form(...), model: str = Form("deepseek"), current_user: dict = Depends(get_current_user)):
+    """科创助手风格：一键生成万字论文初稿"""
+    prompt = f"""请为课题「{topic}」撰写一篇规范的学术论文初稿。按以下结构：
 
-    # 用 gpt_academic 或 DeepSeek 生成测评
-    prompt = f"请对以下科研选题进行多维度测评，返回JSON格式：\n标题：{req.title}\n描述：{topic.description or '无'}\n领域：{topic.field or '综合'}\n\n评估维度包括：学术价值(academic_value)、创新性(innovation)、可行性(feasibility)、应用价值(practical_value)。每个维度包含name、label(中文)、score(0-100)、detail(评估详情)。同时返回综合建议(advice)。"
-    ai_response = await _academic_generate(prompt)
+**摘要** - 200字
+**1. 引言** - 研究背景、问题陈述、研究意义
+**2. 文献综述** - 国内外研究现状（分类梳理）
+**3. 研究方法** - 技术路线、模型设计、实验方案
+**4. 实验与分析** - 实验设置、结果展示、对比分析
+**5. 结论与展望** - 总结贡献、局限性和未来方向
+**参考文献** - 8篇格式规范的参考文献
 
-    dimensions = []
-    advice = ""
-    if ai_response:
-        try:
-            import json as _json
-            eval_data = _json.loads(ai_response)
-            dimensions = eval_data.get("dimensions", [])
-            advice = eval_data.get("advice", "")
-        except Exception:
-            pass
+请用学术语言，逻辑严谨，每个章节不少于500字。"""
+    return StreamingResponse(_ai_stream(prompt, model), media_type="text/event-stream",
+        headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
 
-    if not dimensions:
-        dimensions = [
-            {"name": "academic_value", "label": "学术价值", "score": 82, "detail": "选题具有较高的理论意义，可填补当前研究空白。"},
-            {"name": "innovation", "label": "创新性", "score": 78, "detail": "方法论上有一定创新，但需进一步明确创新点。"},
-            {"name": "feasibility", "label": "可行性", "score": 85, "detail": "技术路线清晰，实验条件基本满足。"},
-            {"name": "practical_value", "label": "应用价值", "score": 72, "detail": "成果可应用于相关行业实践。"},
-        ]
-        advice = "建议加强实验对比分析，补充更多数据集验证方法的泛化能力。"
+# ====== 技术趋势分析 ======
+@router.post("/trend-analysis")
+async def trend_analysis(field: str = Form(...), model: str = Form("deepseek"), current_user: dict = Depends(get_current_user)):
+    """AMiner风格：技术发展趋势分析"""
+    prompt = f"""你是科技情报分析专家。请分析「{field}」领域的技术发展趋势：
 
-    topic.academic_value = dimensions[0]["score"] if dimensions else 0
-    topic.innovation = dimensions[1]["score"] if len(dimensions) > 1 else 0
-    topic.feasibility = dimensions[2]["score"] if len(dimensions) > 2 else 0
-    topic.practical_value = dimensions[3]["score"] if len(dimensions) > 3 else 0
-    topic.advice = advice
-    await db.commit()
-    await db.refresh(topic)
+1. **发展历程** - 该领域近5年的发展脉络
+2. **当前热点** - 3-5个当前最活跃的研究主题
+3. **关键技术** - 该领域的核心技术和方法
+4. **主要玩家** - 学术界(3个团队)和产业界(3个企业)的代表
+5. **未来预测** - 未来3-5年的发展方向
+6. **投资热点** - 哪些方向最受关注
 
-    return {"dimensions": dimensions, "advice": advice}
+请提供具体数据和趋势判断。"""
+    return StreamingResponse(_ai_stream(prompt, model), media_type="text/event-stream",
+        headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
 
-
-@router.get("/topics")
-async def list_topics(
-    db: AsyncSession = Depends(get_db),
-    token: dict = Depends(get_current_user),
-):
-    user_id = await _get_current_user_id(token, db)
-    result = await db.execute(
-        select(ResearchTopic).order_by(ResearchTopic.id.desc())
-    )
-    topics = result.scalars().all()
-    return {"topics": [
-        {
-            "id": t.id, "title": t.title, "description": t.description,
-            "field": t.field, "feasibility": t.feasibility, "innovation": t.innovation,
-            "academic_value": t.academic_value, "practical_value": t.practical_value,
-            "advice": t.advice,
-            "created_at": t.created_at.isoformat() if t.created_at else None,
-        }
-        for t in topics
-    ]}
-
-
-@router.delete("/topics/{topic_id}")
-async def delete_topic(
-    topic_id: int,
-    db: AsyncSession = Depends(get_db),
-    token: dict = Depends(get_current_user),
-):
-    user_id = await _get_current_user_id(token, db)
-    result = await db.execute(
-        select(ResearchTopic).where(
-            ResearchTopic.id == topic_id, ResearchTopic.user_id == user_id
-        )
-    )
-    topic = result.scalar_one_or_none()
-    if not topic:
-        raise HTTPException(status_code=404, detail="选题不存在")
-    await db.delete(topic)
-    await db.commit()
-    return MessageResponse(message="删除成功")
-
-
-# ---- 项目管理 ----
-
-@router.get("/projects")
-async def list_projects(
-    db: AsyncSession = Depends(get_db),
-    token: dict = Depends(get_current_user),
-):
-    user_id = await _get_current_user_id(token, db)
-    result = await db.execute(
-        select(Project)
-        .where(Project.user_id == user_id)
-        .order_by(Project.id.desc())
-    )
-    projects = result.scalars().all()
-    return {"projects": [
-        {
-            "id": p.id, "name": p.name, "description": p.description,
-            "status": p.status, "progress": p.progress,
-            "members_count": p.members_count, "papers_count": p.papers_count,
-            "color": p.color,
-            "created_at": p.created_at.isoformat() if p.created_at else None,
-            "updated_at": p.updated_at.isoformat() if p.updated_at else None,
-        }
-        for p in projects
-    ]}
-
-
-@router.post("/projects")
-async def create_project(
-    req: ProjectCreate,
-    db: AsyncSession = Depends(get_db),
-    token: dict = Depends(get_current_user),
-):
-    user_id = await _get_current_user_id(token, db)
-    project = Project(
-        name=req.name,
-        description=req.description,
-        status=req.status,
-        progress=req.progress,
-        members_count=req.members_count,
-        papers_count=req.papers_count,
-        color=req.color,
-        user_id=user_id,
-    )
-    db.add(project)
-    await db.commit()
-    await db.refresh(project)
-    return {
-        "id": project.id, "name": project.name, "description": project.description,
-        "status": project.status, "progress": project.progress,
-        "members_count": project.members_count, "papers_count": project.papers_count,
-        "color": project.color,
-        "created_at": project.created_at.isoformat() if project.created_at else None,
+# ====== PDF上传分析 ======
+@router.post("/upload-paper")
+async def upload_paper(file: UploadFile = File(...), func: str = Form("read"), current_user: dict = Depends(get_current_user)):
+    """上传PDF并分析"""
+    content = await file.read()
+    text = f"[文件: {file.filename}]\n"
+    try:
+        import io; from PyPDF2 import PdfReader
+        pdf = PdfReader(io.BytesIO(content))
+        for page in pdf.pages[:8]: t = page.extract_text(); text += (t or "") + "\n"
+    except: text += "[PDF解析失败，请检查文件]"
+    
+    prompt_map = {
+        "read": f"你是学术审读专家。请深度解读以下论文，按"研究背景-核心贡献-研究方法-主要发现-局限性"5个维度分析：\n\n{text[:8000]}",
+        "review": f"你是审稿人。请对以下论文进行学术评审（创新性/方法/写作/修改建议）：\n\n{text[:6000]}",
+        "summary": f"请用300字总结以下论文的核心内容：\n\n{text[:5000]}",
+        "translate": f"请将以下论文翻译为中文，保持学术风格：\n\n{text[:5000]}",
     }
+    return StreamingResponse(_ai_stream(prompt_map.get(func, prompt_map["read"])), 
+        media_type="text/event-stream", headers={"Cache-Control":"no-cache"})
 
+# ====== Arxiv ======
+@router.post("/arxiv")
+async def arxiv_paper(url: str = Form(...), model: str = Form("deepseek"), current_user: dict = Depends(get_current_user)):
+    import httpx, xml.etree.ElementTree as ET
+    arxiv_id = url.split("/")[-1].replace("v1","").replace("v2","")
+    async with httpx.AsyncClient() as c:
+        resp = await c.get(f"http://export.arxiv.org/api/query?id_list={arxiv_id}")
+        root = ET.fromstring(resp.text)
+        ns = {"atom":"http://www.w3.org/2005/Atom"}
+        entry = root.find("atom:entry", ns)
+        title = entry.find("atom:title", ns).text.strip() if entry is not None else "未知"
+        summary = entry.find("atom:summary", ns).text.strip()[:3000] if entry is not None else ""
+    prompt = f"请解读这篇Arxiv论文：\n标题：{title}\n摘要：{summary}\n\n输出：1.中文标题 2.一句话概括 3.核心贡献(3点) 4.方法概述 5.结论"
+    return StreamingResponse(_ai_stream(prompt, model), media_type="text/event-stream",
+        headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
 
-@router.put("/projects/{project_id}")
-async def update_project(
-    project_id: int,
-    req: ProjectUpdate,
-    db: AsyncSession = Depends(get_db),
-    token: dict = Depends(get_current_user),
-):
-    user_id = await _get_current_user_id(token, db)
-    result = await db.execute(
-        select(Project).where(
-            Project.id == project_id, Project.user_id == user_id
-        )
-    )
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="项目不存在")
-
-    update_data = req.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(project, field, value)
-
-    await db.commit()
-    await db.refresh(project)
-    return {
-        "id": project.id, "name": project.name, "description": project.description,
-        "status": project.status, "progress": project.progress,
-        "members_count": project.members_count, "papers_count": project.papers_count,
-        "color": project.color,
-        "created_at": project.created_at.isoformat() if project.created_at else None,
-        "updated_at": project.updated_at.isoformat() if project.updated_at else None,
+# ====== 通用SSE流式 ======
+@router.post("/stream")
+async def research_stream(req: ResearchQuery, current_user: dict = Depends(get_current_user)):
+    func_map = {
+        "paper_read": f"你是学术审读专家。请深度解读以下论文（研究背景-核心贡献-方法-发现-局限）：\n\n{req.query[:6000]}",
+        "translate": f"你是专业学术翻译。请将以下内容翻译为中文，保持学术风格：\n\n{req.query[:6000]}",
+        "polish": f"你是学术写作润色专家。请润色以下内容，优化表达和语法：\n\n{req.query[:5000]}",
+        "outline": f"请为课题「{req.query}」生成完整学术论文大纲（选题背景-文献综述-目标-方法-创新-进度）",
+        "review": f"请为主题「{req.query}」撰写文献综述（背景-现状-空白-方向）",
+        "topics": f"请为研究方向「{req.query}」生成4个学术选题（含题目、创新点、可行性），返回JSON",
+        "evaluate": f"请四维度（学术价值/创新性/可行性/应用价值）评估选题「{req.query}」",
+        "literature": f"请搜索分析「{req.query}」领域文献（概况-关键论文-学者-关键词-建议）",
     }
-
-
-@router.delete("/projects/{project_id}")
-async def delete_project(
-    project_id: int,
-    db: AsyncSession = Depends(get_db),
-    token: dict = Depends(get_current_user),
-):
-    user_id = await _get_current_user_id(token, db)
-    result = await db.execute(
-        select(Project).where(
-            Project.id == project_id, Project.user_id == user_id
-        )
-    )
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="项目不存在")
-    await db.delete(project)
-    await db.commit()
-    return MessageResponse(message="删除成功")
+    prompt = func_map.get(req.function, req.query)
+    return StreamingResponse(_ai_stream(prompt, req.model), media_type="text/event-stream",
+        headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})

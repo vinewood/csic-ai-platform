@@ -39,6 +39,7 @@
         <div class="detail-meta">
           <el-tag size="small" effect="light">{{ detail.skill.category }}</el-tag>
           <span style="color:#94a3b8;font-size:12px;margin-left:8px">{{ detail.skill.description }}</span>
+          <a v-if="detail.skill.github_url" :href="detail.skill.github_url" target="_blank" style="font-size:12px;color:#1677ff;margin-left:8px">GitHub 来源 ↗</a>
         </div>
         <el-divider />
         <div class="markdown-view">

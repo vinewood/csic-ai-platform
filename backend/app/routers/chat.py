@@ -190,6 +190,19 @@ async def get_messages(conversation_id: int, current_user: dict = Depends(get_cu
         ]
 
 
+@router.put("/conversations/{conversation_id}/rename")
+async def rename_conversation(conversation_id: int, data: dict, current_user: dict = Depends(get_current_user)):
+    """重命名对话"""
+    from ..models import Conversation
+    from ..database import async_session
+    async with async_session() as db:
+        conv = await db.get(Conversation, conversation_id)
+        if conv:
+            conv.title = data.get("title", conv.title)
+            await db.commit()
+            return {"status": "ok"}
+        raise HTTPException(404)
+
 @router.delete("/conversations/{conversation_id}")
 async def del_conversation(conversation_id: str, current_user: dict = Depends(get_current_user)):
     """删除对话"""

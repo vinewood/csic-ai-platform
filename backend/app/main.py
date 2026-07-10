@@ -15,7 +15,7 @@ from app.config import CORS_ORIGINS, HOST, PORT, reload_api_keys
 from app.database import init_db, seed_db
 from app.routers import (
     auth_router, chat, users, rss, email, files, academic, api_config,
-    knowledge, skills, research, teaching, video, dify_kb, admin, export_docx,
+    knowledge, skills, research, teaching, video, dify_kb, admin, export_docx, research_chat, models_router, usage,
 )
 
 
@@ -68,6 +68,9 @@ app.include_router(video.router)
 app.include_router(dify_kb.router)
 app.include_router(admin.router)
 app.include_router(export_docx.router)
+app.include_router(research_chat.router)
+app.include_router(models_router.router)
+app.include_router(usage.router)
 
 
 @app.get("/api/health")

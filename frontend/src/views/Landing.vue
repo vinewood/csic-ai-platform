@@ -79,15 +79,15 @@ async function login() {
       const data = await resp.json()
       localStorage.setItem('csic_token', data.access_token)
       localStorage.setItem('csic_user', JSON.stringify({ name: data.username }))
-      router.push('/workspace/chat')
+      router.push('/workspace/teaching')
     } else {
       // 后端不可用时回退本地登录
       localStorage.setItem('csic_user', JSON.stringify({ name: form.username }))
-      router.push('/workspace/chat')
+      router.push('/workspace/teaching')
     }
   } catch {
     localStorage.setItem('csic_user', JSON.stringify({ name: form.username }))
-    router.push('/workspace/chat')
+    router.push('/workspace/teaching')
   }
   loading.value = false
 }
