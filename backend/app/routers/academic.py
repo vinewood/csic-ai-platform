@@ -1,44 +1,65 @@
-"""学术搜索代理路由（AMiner + 维普）"""
+"""gpt_academic 集成路由 — 论文翻译/润色/综述/大纲 功能"""
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-import httpx
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+from ..services.academic_service import AcademicEngine
+from ..auth import get_current_user
 
-from ..database import get_db
-from ..models import ApiConfig
-from ..schemas import MessageResponse
-
-router = APIRouter(prefix="/api/academic", tags=["学术搜索"])
+router = APIRouter(prefix="/api/academic", tags=["学术工具"])
 
 
-async def get_api_config(db: AsyncSession, provider: str) -> dict:
-    result = await db.execute(select(ApiConfig).where(ApiConfig.provider == provider))
-    cfg = result.scalar_one_or_none()
-    if not cfg or not cfg.config_json.get("key"):
-        raise HTTPException(status_code=400, detail=f"请先配置 {provider} API")
-    return cfg.config_json
+class TranslateRequest(BaseModel):
+    text: str
+    target_lang: str = "zh"
 
 
-@router.post("/aminer/search")
-async def aminer_search(query: str = "", db: AsyncSession = Depends(get_db)):
-    cfg = await get_api_config(db, "aminer")
-    url = f"{cfg.get('baseUrl', 'https://api.aminer.cn')}/api/search/scholar"
-    headers = {"Authorization": f"Bearer {cfg['key']}", "Content-Type": "application/json"}
-    async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.post(url, headers=headers, json={"query": query or "machine learning", "size": 10})
-        if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail="AMiner 查询失败")
-        return resp.json()
+class ReviewRequest(BaseModel):
+    topic: str
 
 
-@router.post("/vip/search")
-async def vip_search(query: str = "", db: AsyncSession = Depends(get_db)):
-    cfg = await get_api_config(db, "vip")
-    url = f"{cfg.get('endpoint', 'https://openapi.cqvip.com')}/api/v3/search"
-    headers = {"Authorization": f"Bearer {cfg['key']}"}
-    async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.get(url, headers=headers, params={"q": query, "count": 10})
-        if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail="维普查询失败")
-        return resp.json()
+class PolishRequest(BaseModel):
+    text: str
+
+
+class OutlineRequest(BaseModel):
+    topic: str
+
+
+@router.post("/translate")
+async def translate_paper(req: TranslateRequest, current_user: dict = Depends(get_current_user)):
+    """论文翻译 — gpt_academic 引擎"""
+    result = await AcademicEngine.translate_paper(req.text, req.target_lang)
+    return {"result": result}
+
+
+@router.post("/review")
+async def literature_review(req: ReviewRequest, current_user: dict = Depends(get_current_user)):
+    """文献综述 — gpt_academic 引擎"""
+    result = await AcademicEngine.literature_review(req.topic)
+    return {"result": result}
+
+
+@router.post("/polish")
+async def polish_writing(req: PolishRequest, current_user: dict = Depends(get_current_user)):
+    """论文润色 — gpt_academic 引擎"""
+    result = await AcademicEngine.polish_writing(req.text)
+    return {"result": result}
+
+
+@router.post("/outline")
+async def paper_outline(req: OutlineRequest, current_user: dict = Depends(get_current_user)):
+    """论文大纲 — gpt_academic 引擎"""
+    result = await AcademicEngine.paper_outline(req.topic)
+    return {"result": result}
+
+
+@router.get("/health")
+async def academic_health():
+    """gpt_academic 引擎健康检查"""
+    import os
+    exists = os.path.exists("/opt/gpt_academic/core_functional.py")
+    return {
+        "status": "connected" if exists else "not_installed",
+        "engine": "gpt_academic + DeepSeek",
+        "path": "/opt/gpt_academic" if exists else None
+    }
