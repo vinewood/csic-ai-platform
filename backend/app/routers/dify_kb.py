@@ -194,6 +194,16 @@ async def document_status(doc_id: str, current_user: dict = Depends(get_current_
     return {"status": "not_found"}
 
 
+# ===================== KB 检索（RAG） =====================
+
+@router.get("/retrieve")
+async def retrieve_knowledge(query: str = Query(...), dataset_id: str = Query(""), top_k: int = Query(5), current_user: dict = Depends(get_current_user)):
+    """从知识库检索相关文档"""
+    from ..services.kb_storage import retrieve_from_kb
+    results = retrieve_from_kb(query, dataset_id, top_k)
+    return {"query": query, "results": results, "count": len(results)}
+
+
 @router.delete("/datasets/{dataset_id}/documents/{doc_id}")
 async def delete_document(dataset_id: str, doc_id: str, current_user: dict = Depends(get_current_user)):
     return await _dify_api("DELETE", f"/datasets/{dataset_id}/documents/{doc_id}")

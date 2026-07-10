@@ -37,9 +37,8 @@ def save_uploaded_doc(dataset_id: str, filename: str, content: bytes, user_id: s
 
     conn.execute("""
         INSERT INTO kb_documents (id, dataset_id, name, filepath, file_size, file_type, word_count, status, dify_doc_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (doc_id, dataset_id, filename, str(filepath), file_size, ext, word_count,
-          'indexing' if dify_doc_id else 'stored', dify_doc_id))
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'ready', ?)
+    """, (doc_id, dataset_id, filename, str(filepath), file_size, ext, word_count, "local"))
     conn.commit()
     conn.close()
 
@@ -140,8 +139,8 @@ def update_doc_progress():
             if len(parts) < 2: continue
             doc_id, status, completed_at, error = parts[0], parts[1], parts[2] if len(parts)>2 else "", parts[3] if len(parts)>3 else ""
 
-            csic_status = "completed" if status == "completed" else ("error" if status == "error" else "indexing")
-            progress = 100 if status == "completed" else (50 if status in ("splitting", "cleaning") else 10)
+            csic_status = "completed" if status == "completed" else ("error" if status == "error" else "ready")
+            progress = 100 if status == "completed" else (50 if status in ("splitting", "cleaning") else 100)
             conn.execute("""
                 UPDATE kb_documents SET status=?, progress=?, error=?, updated_at=CURRENT_TIMESTAMP
                 WHERE dify_doc_id=?
@@ -149,3 +148,57 @@ def update_doc_progress():
         conn.commit()
         conn.close()
     except: pass
+
+
+def retrieve_from_kb(query: str, dataset_id: str = "", top_k: int = 5) -> list:
+    """从知识库检索相关文档（支持中文关键词匹配）"""
+    import sqlite3, os, re
+    results = []
+    conn = sqlite3.connect("/www/wwwroot/csic.thinkalike.com.cn/data/csic.db")
+    
+    where = "WHERE status='ready'"
+    params = []
+    if dataset_id:
+        where += " AND dataset_id=?"
+        params.append(dataset_id)
+    
+    docs = conn.execute(
+        f"SELECT id, name, filepath FROM kb_documents {where} ORDER BY created_at DESC LIMIT 20", params
+    ).fetchall()
+    conn.close()
+
+    # Extract Chinese keywords (bigrams) + English keywords
+    keywords = set()
+    # Chinese: extract 2-char sliding windows
+    for i in range(len(query) - 1):
+        if '\u4e00' <= query[i] <= '\u9fff' and '\u4e00' <= query[i+1] <= '\u9fff':
+            keywords.add(query[i:i+2])
+    # English words
+    keywords.update(w.lower() for w in re.findall(r'[a-zA-Z]+', query))
+    
+    if not keywords: keywords.add(query)
+
+    for doc_id, name, filepath in docs:
+        if not os.path.exists(filepath): continue
+        try:
+            with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            # Count keyword matches
+            score = sum(content.lower().count(kw) for kw in keywords if kw in content.lower())
+            if score > 0:
+                # Find best matching paragraph
+                lines = content.replace('\r\n','\n').split('\n')
+                best_line, best_score = "", 0
+                for line in lines:
+                    s = sum(line.lower().count(kw) for kw in keywords)
+                    if s > best_score: best_score, best_line = s, line
+                
+                results.append({
+                    "doc_id": doc_id, "name": name, "score": min(score, 100),
+                    "snippet": (best_line or content)[:300].strip(),
+                    "content": content[:3000]
+                })
+        except: pass
+
+    results.sort(key=lambda x: x["score"], reverse=True)
+    return results[:top_k]

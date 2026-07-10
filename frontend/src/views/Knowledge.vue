@@ -89,10 +89,10 @@
         <el-table-column label="状态/进度" width="180">
           <template #default="{row}">
             <div style="display:flex;align-items:center;gap:6px">
-              <el-tag size="small" :type="row.status==='completed'?'success':row.status==='error'?'danger':row.status==='indexing'?'warning':'info'">
+              <el-tag size="small" :type="statusType(row.status || row.display_status || row.indexing_status)">
                 {{ statusLabel(row.status || row.display_status || row.indexing_status) }}
               </el-tag>
-              <el-progress v-if="row.status==='indexing'||row.status==='pending'" :percentage="row.progress||10" :stroke-width="4" style="width:60px" :show-text="false" />
+              <el-progress v-if="row.status==='indexing'" :percentage="row.progress||10" :stroke-width="4" style="width:60px" :show-text="false" />
             </div>
           </template>
         </el-table-column>
@@ -204,8 +204,14 @@ async function uploadDoc(file) {
 }
 
 function statusLabel(s) {
-  const map = { completed: '已完成', indexing: '处理中', pending: '等待中', error: '失败', stored: '已存储', waiting: '等待中' }
+  const map = { completed: '已完成', ready: '就绪', indexing: '处理中', pending: '等待中', error: '失败', stored: '已存储', waiting: '等待中' }
   return map[s] || s || '未知'
+}
+function statusType(s) {
+  if (s === 'completed' || s === 'ready') return 'success'
+  if (s === 'indexing' || s === 'pending') return 'warning'
+  if (s === 'error') return 'danger'
+  return 'info'
 }
 
 async function delDoc(docId) {
