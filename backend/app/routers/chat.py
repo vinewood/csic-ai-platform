@@ -78,6 +78,27 @@ async def chat_blocking(req: ChatRequest, current_user: dict = Depends(get_curre
     raise HTTPException(status_code=502, detail="所有 AI 服务暂不可用，请检查 DeepSeek API Key 配置")
 
 
+@router.post("/dify-chat")
+async def dify_chat_blocking(req: ChatRequest, current_user: dict = Depends(get_current_user)):
+    """Dify 知识库增强对话"""
+    query = req.query
+    user_id = str(current_user.get("id", "default"))
+    kb_id = getattr(req, 'kb_id', None) or ""
+    
+    try:
+        result = await DifyService.chat_blocking(
+            query=query, user=user_id, conversation_id=req.conversation_id or "",
+            kb_id=kb_id
+        )
+        if result:
+            return {"result": result.get("answer", str(result)), "conversation_id": result.get("conversation_id", "")}
+    except Exception:
+        pass
+    
+    # Fallback to direct LLM
+    return await chat_blocking(req, current_user)
+
+
 @router.get("/conversations")
 async def list_conversations(current_user: dict = Depends(get_current_user)):
     """列出用户的对话历史"""
