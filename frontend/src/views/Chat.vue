@@ -6,10 +6,10 @@
         <el-button type="primary" :icon="Plus" @click="newConv" class="new-chat-btn" size="small">新建对话</el-button>
       </div>
       <div class="conv-list">
-        <div v-for="c in convs" :key="c.id" :class="['conv-item',{active:activeConv===c.id}]" 
-          @click="switchConv(c.id)">
+        <div v-for="c in convs" :key="c.id" :class="['conv-item',{active:activeConv===c.id}]" @click="switchConv(c)">
           <div class="conv-title">{{ c.title }}</div>
           <div class="conv-time">{{ c.time }}</div>
+          <el-button link size="small" class="conv-del" @click.stop="delConv(c)"><el-icon><Delete /></el-icon></el-button>
         </div>
         <div v-if="convs.length===0" style="text-align:center;color:#bbb;padding:20px;font-size:12px">暂无历史对话</div>
       </div>
@@ -17,7 +17,6 @@
 
     <!-- 右侧：对话区 -->
     <div class="chat-main">
-      <!-- 顶栏：模型/多模/技能/知识库 -->
       <div class="chat-tools">
         <el-radio-group v-model="mode" size="small">
           <el-radio-button value="single">单模型</el-radio-button>
@@ -46,19 +45,14 @@
         <div v-if="msgs.length===0" class="empty-state">
           <p>输入消息开始与 AI 对话</p>
         </div>
-
         <template v-if="mode==='single'">
           <div v-for="(m,i) in msgs" :key="i" :class="['msg',m.role]">
             <div class="msg-text" v-html="render(m.content)"></div>
           </div>
         </template>
-
         <template v-else>
-          <!-- 多模型对比：每个模型一列 -->
           <div v-for="(m,i) in msgs" :key="i">
-            <div v-if="m.role==='user'" class="msg user">
-              <div class="msg-text">{{ m.content }}</div>
-            </div>
+            <div v-if="m.role==='user'" class="msg user"><div class="msg-text">{{ m.content }}</div></div>
             <div v-else class="multi-results">
               <div v-for="r in m.results" :key="r.model" class="multi-col">
                 <div class="multi-model-label">{{ r.model }}</div>
@@ -67,13 +61,14 @@
             </div>
           </div>
         </template>
-
-        <div v-if="thinking" class="msg assistant"><div class="thinking">...</div></div>
       </div>
 
       <!-- 输入框 -->
       <div class="chat-input">
-        <el-input v-model="input" type="textarea" :rows="1" placeholder="输入消息，Enter 发送" 
+        <el-upload :show-file-list="false" :before-upload="handleUpload" accept=".pdf,.docx,.txt,.md,.jpg,.png">
+          <el-button circle size="small"><el-icon><UploadFilled /></el-icon></el-button>
+        </el-upload>
+        <el-input v-model="input" type="textarea" :rows="3" placeholder="输入消息，Enter 发送"
           @keydown.enter.exact.prevent="send(input)" resize="none" />
         <el-button type="primary" @click="send(input)" :loading="thinking" size="small">发送</el-button>
       </div>
@@ -84,9 +79,10 @@
 <script setup>
 import { ref, onMounted, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { Plus } from '@element-plus/icons-vue'
-import { apiGet, apiPost, apiDelete } from '../api.js'
+import { Plus, UploadFilled, Delete } from '@element-plus/icons-vue'
+import { apiGet, apiDelete } from '../api.js'
 import { marked } from 'marked'
+import { ElMessage } from 'element-plus'
 
 const route = useRoute()
 const input = ref(''), mode = ref('single'), model = ref('deepseek'), multiModels = ref(['deepseek','qwen'])
@@ -97,26 +93,32 @@ const modelList = ['deepseek','qwen','zhipu','kimi','minimax','doubao']
 const bodyRef = ref(null)
 
 onMounted(async () => {
-  // 加载技能和知识库
   const [sdata, kdata, cdata] = await Promise.all([
     apiGet('/api/skills'), apiGet('/api/knowledge'), apiGet('/api/chat/conversations')
   ])
   if (sdata) skills.value = sdata
   if (kdata) kbs.value = Array.isArray(kdata) ? kdata : (kdata.items||[])
-  if (cdata) convs.value = cdata.map(c => ({id:c.id,title:c.name||c.title||'对话',time:c.created_at||'刚刚'}))
+  if (cdata) convs.value = cdata.map(c => ({id:c.id,title:c.title||c.name||'对话',time:c.created_at?.slice(0,10)||'刚刚'}))
 
-  // 从技能中心跳转过来自动挂载
   const skillId = route.query.skill
   if (skillId) activeSkill.value = skillId
 })
 
-watch(activeConv, async (id) => {
-  if (id === 'new') { msgs.value = []; return }
-  // TODO: 加载指定对话的消息历史
-})
-
 function newConv() { activeConv.value = 'new'; msgs.value = [] }
-function switchConv(id) { activeConv.value = id }
+function switchConv(c) {
+  activeConv.value = c.id
+  // Load messages from this conversation
+  loadMessages(c.id)
+}
+async function delConv(c) {
+  await apiDelete(`/api/chat/conversations/${c.id}`)
+  convs.value = convs.value.filter(x => x.id !== c.id)
+  if (activeConv.value === c.id) newConv()
+}
+async function loadMessages(convId) {
+  const data = await apiGet(`/api/chat/conversations/${convId}/messages`)
+  msgs.value = data ? data.map(m => ({ role: m.role, content: m.content })) : []
+}
 
 async function send(text) {
   const t = typeof text === 'string' ? text : input.value
@@ -125,76 +127,125 @@ async function send(text) {
   await nextTick(); scrollBottom()
 
   if (mode.value === 'single') {
-    // 单模型
     msgs.value.push({ role: 'user', content: t.trim() })
-    try {
-      const res = await apiPost('/api/chat/dify-chat', {
-        query: t.trim(), model: model.value, kb_id: kbId.value || '',
-        conversation_id: activeConv.value==='new'?'':activeConv.value,
-        skill_id: activeSkill.value || ''
-      })
-      msgs.value.push({ role: 'assistant', content: res.result || res.answer || '无回复' })
-      if (activeConv.value==='new' && res.conversation_id) activeConv.value = res.conversation_id
-    } catch (e) {
-      msgs.value.push({ role: 'assistant', content: `[错误] ${e.message}` })
-    }
+    msgs.value.push({ role: 'assistant', content: '' })
+    await streamChat(t.trim(), msgs.value[msgs.value.length-1], model.value)
   } else {
-    // 多模型对比
     msgs.value.push({ role: 'user', content: t.trim() })
-    const results = []
-    const promises = multiModels.value.map(async m => {
-      try {
-        const res = await apiPost('/api/chat/dify-chat', {
-          query: t.trim(), model: m, kb_id: kbId.value || '',
-          skill_id: activeSkill.value || ''
-        })
-        results.push({ model: m, content: res.result || res.answer || '无回复' })
-      } catch (e) {
-        results.push({ model: m, content: `[${e.message}]` })
-      }
-    })
-    await Promise.all(promises)
-    msgs.value.push({ role: 'assistant', results })
+    const resultItems = multiModels.value.map(m => ({ model: m, content: '' }))
+    msgs.value.push({ role: 'assistant', results: resultItems })
+    await Promise.all(multiModels.value.map((m, i) =>
+      streamChat(t.trim(), resultItems[i], m)
+    ))
   }
   thinking.value = false
   await nextTick(); scrollBottom()
 }
 
-function render(text) { try { return marked.parse(text) } catch { return text } }
+async function streamChat(query, target, mdl) {
+  const token = localStorage.getItem('csic_token')
+  const API_BASE = window.location.port === '5173' ? 'http://localhost:8000' : ''
+  try {
+    const resp = await fetch(`${API_BASE}/api/chat/dify-chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        query, model: mdl,
+        conversation_id: activeConv.value === 'new' ? '' : activeConv.value,
+        skill_id: activeSkill.value || '',
+        kb_id: kbId.value || ''
+      })
+    })
+    const reader = resp.body.getReader()
+    const decoder = new TextDecoder()
+    let fullContent = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      const text = decoder.decode(value, { stream: true })
+      for (const line of text.split('\n')) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6)
+          if (data === '[DONE]') continue
+          try {
+            const json = JSON.parse(data)
+            if (json.conversation_id && activeConv.value === 'new') {
+              activeConv.value = json.conversation_id
+              // Refresh conversation list
+              const cdata = await apiGet('/api/chat/conversations')
+              if (cdata) convs.value = cdata.map(c => ({id:c.id,title:c.title||c.name||'对话',time:c.created_at?.slice(0,10)||'刚刚'}))
+            }
+            if (json.content) {
+              fullContent += json.content
+              if (target.content !== undefined) target.content = fullContent
+              else if (target.results) target.content = fullContent
+            }
+          } catch (e) { /* ignore parse errors for partial chunks */ }
+        }
+      }
+    }
+  } catch (e) {
+    target.content = `[错误] ${e.message}`
+  }
+}
+
+function render(text) {
+  if (!text) return ''
+  // 合并多余换行为最多两个
+  const cleaned = text.replace(/\n{3,}/g, '\n\n')
+  try { return marked.parse(cleaned) } catch { return cleaned }
+}
 function scrollBottom() {
   nextTick(() => { if(bodyRef.value) bodyRef.value.scrollTop = bodyRef.value.scrollHeight })
+}
+
+async function handleUpload(file) {
+  const formData = new FormData(); formData.append('file', file)
+  msgs.value.push({ role: 'user', content: `📎 ${file.name}` })
+  thinking.value = true
+  try {
+    const token = localStorage.getItem('csic_token')
+    const API_BASE = window.location.port === '5173' ? 'http://localhost:8000' : ''
+    const resp = await fetch(`${API_BASE}/api/files/upload`, {
+      method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData
+    })
+    const data = await resp.json()
+    msgs.value.push({ role: 'assistant', content: `文件已上传，内容预览：\n\n${(data.result||data.text||'').slice(0, 2000)}` })
+  } catch (e) {
+    msgs.value.push({ role: 'assistant', content: `[上传失败: ${e.message}]` })
+  } finally { thinking.value = false }
+  return false
 }
 </script>
 
 <style scoped>
-.chat-layout { display:flex; height:calc(100vh - 100px); background:#fff; }
+.chat-layout { display:flex; height:calc(100vh - 160px); background:#fff; }
 .chat-sidebar { width:200px; min-width:200px; border-right:1px solid #e5e7eb; display:flex; flex-direction:column; }
 .sidebar-header { padding:8px; }
 .new-chat-btn { width:100%; }
 .conv-list { flex:1; overflow-y:auto; padding:0 6px; }
-.conv-item { padding:8px 10px; border-radius:6px; cursor:pointer; margin-bottom:2px; }
+.conv-item { padding:8px 10px; border-radius:6px; cursor:pointer; margin-bottom:2px; display:flex; justify-content:space-between; align-items:center; }
 .conv-item:hover,.conv-item.active { background:#f0f5ff; }
-.conv-title { font-size:13px; color:#1f2937; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.conv-time { font-size:10px; color:#9ca3af; }
+.conv-title { font-size:13px; color:#1f2937; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
+.conv-time { font-size:10px; color:#9ca3af; margin-left:8px; }
+.conv-del { opacity:0; }
+.conv-item:hover .conv-del { opacity:1; }
 
 .chat-main { flex:1; display:flex; flex-direction:column; min-width:0; }
 .chat-tools { padding:6px 12px; border-bottom:1px solid #e5e7eb; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-
-.chat-body { flex:1; overflow-y:auto; padding:12px 16px; }
+.chat-body { flex:1; overflow-y:auto; padding:12px 24px 12px 24px; }
 .empty-state { text-align:center; padding:60px 20px; color:#9ca3af; }
 .msg { margin-bottom:12px; }
 .msg.user { text-align:right; }
-.msg-text { display:inline-block; max-width:80%; padding:8px 12px; border-radius:10px; font-size:13px; line-height:1.6; }
+.msg-text { display:inline-block; max-width:80%; padding:8px 12px; border-radius:10px; font-size:13px; line-height:1.6; white-space:pre-wrap; word-break:break-word; }
 .msg.user .msg-text { background:#1677ff; color:#fff; }
 .msg.assistant .msg-text { background:#f3f4f6; color:#1f2937; }
 .msg-text :deep(pre) { background:#1e293b;color:#e2e8f0;padding:6px 10px;border-radius:6px;overflow-x:auto;font-size:12px; }
 .msg-text :deep(code) { background:#e5e7eb;padding:1px 3px;border-radius:3px;font-size:12px; }
-.thinking { color:#9ca3af; font-size:12px; padding:8px 12px; }
-
 .multi-results { display:grid; grid-template-columns: repeat(auto-fit, minmax(280px,1fr)); gap:8px; margin-bottom:12px; }
 .multi-col { border:1px solid #e5e7eb; border-radius:8px; padding:8px; }
 .multi-model-label { font-size:11px; color:#1677ff; font-weight:600; margin-bottom:6px; }
-
 .chat-input { padding:8px 12px; border-top:1px solid #e5e7eb; display:flex; gap:8px; align-items:center; }
 .chat-input :deep(.el-textarea__inner) { border-radius:8px; font-size:13px; padding:6px 10px; }
 </style>

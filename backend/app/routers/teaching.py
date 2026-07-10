@@ -145,6 +145,28 @@ async def generate_content(req: TeachingRequest, current_user: dict = Depends(ge
 
 
 # 兼容旧接口
+@router.get("/topics")
+async def list_teaching_topics():
+    """获取已保存的教学课题"""
+    from ..database import async_session
+    from ..models import TeachingTopic
+    from sqlalchemy import select
+    async with async_session() as s:
+        result = await s.execute(select(TeachingTopic).order_by(TeachingTopic.id.desc()).limit(20))
+        topics = result.scalars().all()
+        return [{"id": t.id, "title": t.title, "description": t.description, "level": t.level, "hours": t.hours, "audience": t.audience} for t in topics]
+
+@router.get("/save-topic")
+async def save_topic(title: str, desc: str = "", level: str = "标准", hours: int = 4, audience: str = "党校学员"):
+    """保存教学课题"""
+    from ..database import async_session
+    from ..models import TeachingTopic
+    async with async_session() as s:
+        topic = TeachingTopic(title=title, description=desc, level=level, hours=hours, audience=audience)
+        s.add(topic)
+        await s.commit()
+        return {"id": topic.id, "saved": True}
+
 @router.get("/knowledge-bases")
 async def list_teaching_kb():
     """获取教学知识库列表（从数据库）"""

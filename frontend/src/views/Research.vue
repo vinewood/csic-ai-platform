@@ -49,9 +49,11 @@
         <div class="model-selector">
           <span class="model-label">模型</span>
           <el-select v-model="selectedModel" size="small" style="width:100%">
-            <el-option label="DeepSeek V3" value="deepseek" />
-            <el-option label="千问 Max" value="qwen" />
-            <el-option label="智谱 GLM-4" value="zhipu" />
+            <el-option label="DeepSeek" value="deepseek" />
+            <el-option label="千问" value="qwen" />
+            <el-option label="智谱" value="zhipu" />
+            <el-option label="Kimi" value="kimi" />
+            <el-option label="MiniMax" value="minimax" />
           </el-select>
         </div>
 
@@ -139,19 +141,36 @@
           </div>
         </div>
       </div>
+
+      <!-- 右栏：技能中心 -->
+      <div class="skill-sidebar">
+        <div class="panel-title">技能中心</div>
+        <div class="skill-list">
+          <div v-for="s in skillList" :key="s.id" class="skill-item" :class="{active:skillId===s.id}" @click="skillId=s.id;ElMessage.success('已挂载: '+s.name)">
+            <el-icon :size="14"><component :is="iconMap[s.icon] || MagicStick" /></el-icon>
+            <span>{{ s.name }}</span>
+          </div>
+          <div v-if="skillList.length===0" style="color:#bbb;font-size:11px;text-align:center;padding:10px">暂无</div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, onMounted } from 'vue'
 import { 
   Reading, Cpu, UserFilled, Promotion, CopyDocument, Refresh, Delete, UploadFilled,
   EditPen, Document, DataAnalysis, Notebook, MagicStick, Files, Connection, TrendCharts
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { apiGet, apiPost, apiPut, apiUpload } from '../api.js'
+import * as Icons from '@element-plus/icons-vue'
 import { marked } from 'marked'
+
+const iconMap = { ...Icons }
+const skillList = ref([])
+const skillId = ref('')
 
 // ====== 功能插件定义 ======
 const writingPlugins = [
@@ -188,6 +207,12 @@ const loading = ref(false)
 const selectedModel = ref('deepseek')
 const temperature = ref(0.7)
 const msgBox = ref(null)
+
+// 加载技能列表
+onMounted(async () => {
+  const s = await apiGet('/api/skills')
+  if (s) skillList.value = s
+})
 
 // ====== 计算属性 ======
 const pluginLabel = computed(() => {
@@ -227,23 +252,51 @@ async function sendMessage() {
   messages.value.push({ role: 'user', content: text, title })
   inputText.value = ''
   loading.value = true
-  
-  await nextTick()
-  scrollBottom()
+  await nextTick(); scrollBottom()
+
+  // 用 SSE 流式获取回复
+  messages.value.push({ role: 'assistant', content: '' })
+  const lastMsg = messages.value[messages.value.length - 1]
 
   try {
-    // 路由到对应 API
-    const endpoint = getEndpoint(activePlugin.value)
-    const body = getRequestBody(activePlugin.value, text)
-    const res = await apiPost(endpoint, body)
-    const result = extractResult(res, activePlugin.value)
-    messages.value.push({ role: 'assistant', content: result })
+    const token = localStorage.getItem('csic_token')
+    const API_BASE = window.location.port === '5173' ? 'http://localhost:8000' : ''
+    const plugin = allPlugins.find(p => p.id === activePlugin.value)
+    
+    // 构造查询：如果有插件则带上插件名作为上下文
+    let query = text
+    if (plugin) {
+      query = `【${plugin.label}】${text}`
+    }
+
+    const resp = await fetch(`${API_BASE}/api/chat/dify-chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ query, model: selectedModel.value })
+    })
+    const reader = resp.body.getReader()
+    const decoder = new TextDecoder()
+    let full = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      const chunk = decoder.decode(value, { stream: true })
+      for (const line of chunk.split('\n')) {
+        if (line.startsWith('data: ')) {
+          const d = line.slice(6)
+          if (d === '[DONE]') continue
+          try {
+            const json = JSON.parse(d)
+            if (json.content) { full += json.content; lastMsg.content = full }
+          } catch {}
+        }
+      }
+    }
   } catch (e) {
-    messages.value.push({ role: 'assistant', content: `[错误] ${e.message || '请求失败'}` })
+    lastMsg.content = `[错误] ${e.message || '请求失败'}`
   } finally {
     loading.value = false
-    await nextTick()
-    scrollBottom()
+    await nextTick(); scrollBottom()
   }
 }
 
@@ -464,6 +517,14 @@ function scrollBottom() {
 .left-actions, .right-actions { display: flex; align-items: center; gap: 8px; }
 
 /* ====== Responsive ====== */
+/* 右栏技能 */
+.skill-sidebar { width:150px; min-width:150px; background:#f8f9fb; border-left:1px solid #e5e7eb; padding:16px 10px; }
+.skill-list { display:flex; flex-direction:column; gap:3px; }
+.skill-item { display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:6px; cursor:pointer; font-size:12px; color:#374151; }
+.skill-item:hover { background:#e8ecf1; }
+.skill-item.active { background:#1677ff12; color:#1677ff; font-weight:600; }
+.skill-item span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
 @media (max-width: 768px) {
   .plugin-panel { display: none; }
   .workspace-container { margin: 0; border-radius: 0; height: calc(100vh - 160px); }
