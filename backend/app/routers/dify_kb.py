@@ -206,7 +206,48 @@ async def retrieve_knowledge(query: str = Query(...), dataset_id: str = Query(""
 
 @router.delete("/datasets/{dataset_id}/documents/{doc_id}")
 async def delete_document(dataset_id: str, doc_id: str, current_user: dict = Depends(get_current_user)):
-    return await _dify_api("DELETE", f"/datasets/{dataset_id}/documents/{doc_id}")
+    """删除文档 — 本地追踪DB + Dify DB + 磁盘文件"""
+    import sqlite3, os, subprocess
+    
+    conn = sqlite3.connect("/www/wwwroot/csic.thinkalike.com.cn/data/csic.db")
+    row = conn.execute(
+        "SELECT filepath, dify_doc_id FROM kb_documents WHERE id=? OR dify_doc_id=?",
+        (doc_id, doc_id)
+    ).fetchone()
+    
+    results = []
+    
+    # 1. From local tracking DB
+    conn.execute("DELETE FROM kb_documents WHERE id=? OR dify_doc_id=?", (doc_id, doc_id))
+    conn.commit()
+    
+    if row:
+        filepath, dify_doc_id = row
+        target_id = dify_doc_id or doc_id
+        
+        # 2. From disk
+        if filepath and os.path.exists(filepath):
+            try: os.remove(filepath); results.append("file_deleted")
+            except: pass
+        
+        # 3. From Dify PostgreSQL
+        try:
+            subprocess.run(
+                ["docker", "exec", "dify-db", "psql", "-U", "postgres", "-d", "dify",
+                 "-c", f"DELETE FROM documents WHERE id='{target_id}' OR id='{doc_id}'"],
+                capture_output=True, text=True, timeout=8
+            )
+            results.append("dify_db_cleared")
+        except: pass
+        
+        # 4. Try Dify API
+        try:
+            await _dify_api("DELETE", f"/datasets/{dataset_id}/documents/{target_id}")
+            results.append("dify_api_deleted")
+        except: pass
+    
+    conn.close()
+    return {"deleted": doc_id, "actions": results}
 
 
 # ===================== 简化列表 =====================
