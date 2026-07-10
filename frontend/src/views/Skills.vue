@@ -1,97 +1,83 @@
 <template>
   <div>
     <div class="csic-hero" style="background-image:url(https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=1200&q=80);">
-      <div class="hero-content">
-        <h2>AI 技能中心</h2>
-        <p>预置AI技能 · 自定义技能 · 收藏调用</p>
-      </div>
+      <div class="hero-content"><h2>AI 技能中心</h2><p>预置AI技能 · 自定义技能 · 收藏调用 · {{ skills.length }} 个技能</p></div>
     </div>
 
     <div class="csic-filter-bar">
-      <el-input v-model="search" placeholder="搜索技能..." clearable style="width:240px;">
-        <template #prefix><el-icon><Search /></el-icon></template>
-      </el-input>
+      <el-input v-model="search" placeholder="搜索技能..." clearable style="width:240px"><template #prefix><el-icon><Search /></el-icon></template></el-input>
       <el-radio-group v-model="filter" size="small">
         <el-radio-button value="">全部</el-radio-button>
-        <el-radio-button value="科研">科研</el-radio-button>
-        <el-radio-button value="教学">教学</el-radio-button>
-        <el-radio-button value="新闻">新闻</el-radio-button>
-        <el-radio-button value="工具">工具</el-radio-button>
+        <el-radio-button v-for="c in categories" :key="c" :value="c">{{ c }}</el-radio-button>
       </el-radio-group>
-      <el-button :type="showFavOnly?'primary':'default'" size="small" :icon="Star" @click="showFavOnly=!showFavOnly" round>
-        {{ showFavOnly ? '全部技能' : '我的收藏' }}
-      </el-button>
-      <el-button type="success" size="small" :icon="Plus" @click="openCreateDialog" round style="margin-left:auto;">新建技能</el-button>
+      <el-button :type="showFav?'primary':'default'" size="small" :icon="Star" @click="showFav=!showFav" round>{{ showFav?'全部':'收藏' }}</el-button>
+      <el-button type="success" size="small" :icon="Plus" @click="openCreate" round style="margin-left:auto">新建技能</el-button>
     </div>
 
-    <el-row :gutter="16">
-      <el-col :xs="24" :sm="12" :md="8" :lg="6" v-for="s in displayed" :key="s.id" style="margin-bottom:16px;">
+    <el-row :gutter="12">
+      <el-col :xs="24" :sm="12" :md="8" :lg="6" v-for="s in displayed" :key="s.id" style="margin-bottom:12px">
         <el-card shadow="hover" class="skill-card" @click="openDetail(s)">
-          <div class="skill-actions-top">
-            <el-button
-              :type="s.favorited ? 'warning' : 'default'"
-              :icon="s.favorited ? StarFilled : Star"
-              size="small"
-              circle
-              @click.stop="toggleFav(s)"
-            />
+          <div class="skill-top">
+            <el-button :type="s.favorited?'warning':'default'" :icon="s.favorited?StarFilled:Star" size="small" circle @click.stop="toggleFav(s)" />
           </div>
           <div class="skill-main">
-            <div class="skill-icon" :style="{background: hexToRgba(s.color || '#1677ff', 0.08), borderColor: hexToRgba(s.color || '#1677ff', 0.18)}">
-              <el-icon :size="26" :color="s.color || '#1677ff'"><component :is="iconMap[s.icon] || MenuIcon" /></el-icon>
+            <div class="skill-icon" :style="{background:hex(s.color,0.08),borderColor:hex(s.color,0.18)}">
+              <el-icon :size="24" :color="s.color"><component :is="icons[s.icon]||MenuIcon" /></el-icon>
             </div>
-            <div class="skill-info">
-              <h3>{{ s.name }}</h3>
-              <p>{{ s.desc || '暂无描述' }}</p>
-            </div>
+            <div class="skill-info"><h3>{{ s.name }}</h3><p>{{ s.description || '暂无描述' }}</p></div>
           </div>
           <div class="skill-footer">
-            <el-tag size="small" effect="light" :style="{color: s.color||'#1677ff', background: hexToRgba(s.color||'#1677ff', 0.08), borderColor: hexToRgba(s.color||'#1677ff', 0.15)}">{{ s.category }}</el-tag>
+            <el-tag size="small" effect="light">{{ s.category }}</el-tag>
           </div>
         </el-card>
       </el-col>
     </el-row>
 
-    <!-- 技能详情对话框 -->
-    <el-dialog v-model="detailVisible" :title="detailSkill?.name" width="540px" destroy-on-close>
-      <template v-if="detailSkill">
-        <div style="display:flex;gap:16px;margin-bottom:20px">
-          <div class="skill-icon" style="width:64px;height:64px;border-radius:16px" :style="{background: hexToRgba(detailSkill.color||'#1677ff',0.08), borderColor: hexToRgba(detailSkill.color||'#1677ff',0.18)}">
-            <el-icon :size="32" :color="detailSkill.color||'#1677ff'"><component :is="iconMap[detailSkill.icon] || MenuIcon" /></el-icon>
-          </div>
-          <div>
-            <el-tag size="small" effect="light">{{ detailSkill.category }}</el-tag>
-            <p style="color:#666;margin-top:8px;line-height:1.6">{{ detailSkill.desc }}</p>
-          </div>
+    <!-- 技能详情弹窗 — 大屏 Markdown 查看 -->
+    <el-dialog v-model="detail.visible" :title="detail.skill?.name" width="720px" top="5vh" destroy-on-close>
+      <template v-if="detail.skill">
+        <div class="detail-meta">
+          <el-tag size="small" effect="light">{{ detail.skill.category }}</el-tag>
+          <span style="color:#94a3b8;font-size:12px;margin-left:8px">{{ detail.skill.description }}</span>
         </div>
         <el-divider />
-        <div v-if="detailSkill.prompt" style="background:#f8f9fb;border-radius:8px;padding:12px;margin-bottom:16px">
-          <p style="color:#999;font-size:12px;margin:0 0 6px">系统提示词</p>
-          <p style="color:#444;font-size:13px;margin:0;white-space:pre-wrap;line-height:1.6">{{ detailSkill.prompt }}</p>
+        <div class="markdown-view">
+          <div class="md-label">系统提示词</div>
+          <div class="md-content">{{ detail.skill.prompt || '暂无提示词' }}</div>
         </div>
       </template>
       <template #footer>
-        <el-button @click="detailVisible=false">关闭</el-button>
-        <el-button type="primary" @click="useSkill(detailSkill)">使用此技能</el-button>
+        <div class="detail-footer">
+          <el-button @click="editSkill(detail.skill)">修改</el-button>
+          <el-button :type="detail.skill?.favorited?'warning':'default'" @click="toggleFav(detail.skill);detail.visible=false">{{ detail.skill?.favorited?'取消收藏':'收藏' }}</el-button>
+          <el-button type="primary" @click="useIn('chat')">AI对话使用</el-button>
+          <el-button type="success" @click="useIn('teaching')">教学使用</el-button>
+          <el-button type="info" @click="useIn('research')">科研使用</el-button>
+          <el-button type="danger" @click="delSkill(detail.skill)">删除</el-button>
+          <el-button @click="detail.visible=false">关闭</el-button>
+        </div>
       </template>
     </el-dialog>
 
-    <!-- 新建技能对话框 -->
-    <el-dialog v-model="createVisible" title="新建技能" width="520px" destroy-on-close>
-      <el-form :model="createForm" label-width="90px">
-        <el-form-item label="技能名称"><el-input v-model="createForm.name" placeholder="输入技能名称" /></el-form-item>
-        <el-form-item label="功能描述"><el-input v-model="createForm.desc" type="textarea" :rows="3" placeholder="描述这个技能的功能" /></el-form-item>
+    <!-- 新建/编辑技能弹窗 — 大屏 Markdown 编辑 -->
+    <el-dialog v-model="create.visible" :title="create.editId?'编辑技能':'新建技能'" width="700px" top="5vh" destroy-on-close>
+      <el-form :model="create.form" label-width="80px">
+        <el-form-item label="名称"><el-input v-model="create.form.name" /></el-form-item>
+        <el-form-item label="描述"><el-input v-model="create.form.description" type="textarea" :rows="2" /></el-form-item>
         <el-form-item label="分类">
-          <el-select v-model="createForm.category" style="width:100%;">
-            <el-option label="科研" value="科研" /><el-option label="教学" value="教学" />
-            <el-option label="新闻" value="新闻" /><el-option label="工具" value="工具" />
+          <el-select v-model="create.form.category" style="width:200px">
+            <el-option v-for="c in categories" :key="c" :label="c" :value="c" />
           </el-select>
+          <el-input v-model="create.form.icon" placeholder="图标名" style="width:140px;margin-left:8px" />
+          <el-input v-model="create.form.color" placeholder="颜色" style="width:100px;margin-left:8px" />
         </el-form-item>
-        <el-form-item label="系统提示词"><el-input v-model="createForm.prompt" type="textarea" :rows="5" placeholder="定义这个技能的 AI 角色、行为规则和输出格式..." /></el-form-item>
+        <el-form-item label="提示词">
+          <el-input v-model="create.form.prompt" type="textarea" :rows="15" style="font-family:monospace;font-size:12px" placeholder="Markdown/代码模式输入系统提示词..." />
+        </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="createVisible=false">取消</el-button>
-        <el-button type="primary" @click="confirmCreate">创建并收藏</el-button>
+        <el-button @click="create.visible=false">取消</el-button>
+        <el-button type="primary" @click="confirmSkill">保存技能</el-button>
       </template>
     </el-dialog>
   </div>
@@ -102,75 +88,83 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, Star, StarFilled, Plus, Menu as MenuIcon } from '@element-plus/icons-vue'
 import * as Icons from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import { apiGet, apiPost, apiPut } from '../api.js'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { apiGet, apiPost, apiPut, apiDelete } from '../api.js'
 
 const router = useRouter()
-const search = ref(''), filter = ref(''), showFavOnly = ref(false)
+const icons = { ...Icons }
+const search = ref(''), filter = ref(''), showFav = ref(false)
 const skills = ref([])
+const categories = computed(() => [...new Set(skills.value.map(s=>s.category).filter(Boolean))])
 
-// 图标名称映射表
-const iconMap = { ...Icons, MenuIcon }
+const detail = ref({ visible: false, skill: null })
+const create = ref({ visible: false, editId: null, form: { name:'', description:'', category:'科研', icon:'MagicStick', color:'#1677ff', prompt:'' } })
 
-async function loadSkills() {
-  const data = await apiGet('/api/skills')
-  if (data) skills.value = data
-}
-onMounted(loadSkills)
-
-const displayed = computed(() => {
-  let list = skills.value
-  if (filter.value) list = list.filter(s => s.category === filter.value)
-  if (search.value) list = list.filter(s => s.name.includes(search.value) || (s.desc || '').includes(search.value))
-  if (showFavOnly.value) list = list.filter(s => s.favorited)
-  return list
+onMounted(async () => {
+  const d = await apiGet('/api/skills'); if (d) skills.value = d
 })
 
+const displayed = computed(() => {
+  let l = skills.value
+  if (filter.value) l = l.filter(s => s.category === filter.value)
+  if (search.value) l = l.filter(s => s.name.includes(search.value) || (s.description||'').includes(search.value))
+  if (showFav.value) l = l.filter(s => s.favorited)
+  return l
+})
+
+function openDetail(s) { detail.value = { visible: true, skill: { ...s } } }
+
 async function toggleFav(s) {
-  const skillId = s.id
-  const resp = await apiPut(`/api/skills/${skillId}/favorite`, {})
-  if (resp) { s.favorited = resp.favorited; ElMessage.success(resp.favorited ? '已收藏' : '已取消收藏') }
+  const r = await apiPut(`/api/skills/${s.id}/favorite`, {})
+  if (r) { s.favorited = r.favorited; const idx = skills.value.findIndex(x=>x.id===s.id); if (idx>=0) skills.value[idx].favorited = r.favorited }
 }
 
-// 技能详情对话框
-const detailVisible = ref(false)
-const detailSkill = ref(null)
-function openDetail(s) { detailSkill.value = s; detailVisible.value = true }
-
-function useSkill(s) {
-  if (!s) return
-  detailVisible.value = false
-  router.push(`/workspace/chat?skill=${s.id}`)
+function useIn(type) {
+  const s = detail.value.skill; if (!s) return
+  const map = { chat: '/workspace/chat', teaching: '/workspace/teaching', research: '/workspace/research' }
+  detail.value.visible = false
+  router.push(`${map[type]}?skill=${s.id}`)
 }
 
-// 新建技能
-const createVisible = ref(false)
-const createForm = ref({ name: '', desc: '', category: '科研', prompt: '' })
-function openCreateDialog() {
-  createForm.value = { name: '', desc: '', category: '科研', prompt: '' }
-  createVisible.value = true
-}
-async function confirmCreate() {
-  if (!createForm.value.name) { ElMessage.warning('请输入技能名称'); return }
-  const resp = await apiPost('/api/skills', { name: createForm.value.name, desc: createForm.value.desc, category: createForm.value.category, prompt: createForm.value.prompt })
-  if (resp) { createVisible.value = false; await loadSkills(); ElMessage.success('技能已创建并自动收藏') }
+async function delSkill(s) {
+  try { await ElMessageBox.confirm('确定删除该技能？', '确认', { type: 'warning' }) } catch { return }
+  await apiDelete(`/api/skills/${s.id}`)
+  skills.value = skills.value.filter(x => x.id !== s.id)
+  detail.value.visible = false
+  ElMessage.success('已删除')
 }
 
-function hexToRgba(hex, alpha) {
-  if (!hex || !hex.startsWith('#')) return `rgba(22,119,255,${alpha})`
-  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16)
-  return `rgba(${r},${g},${b},${alpha})`
+function editSkill(s) { detail.visible = false; create.value = { visible: true, editId: s.id, form: { ...s } } }
+function openCreate() { create.value = { visible: true, editId: null, form: { name:'', description:'', category:'科研', icon:'MagicStick', color:'#1677ff', prompt:'' } } }
+
+async function confirmSkill() {
+  if (!create.value.form.name) { ElMessage.warning('请输入名称'); return }
+  const d = create.value.form
+  let r
+  if (create.value.editId) {
+    r = await apiPut(`/api/skills/${create.value.editId}`, d)
+  } else {
+    r = await apiPost('/api/skills', d)
+  }
+  if (r) { create.value.visible = false; const dd = await apiGet('/api/skills'); if (dd) skills.value = dd; ElMessage.success('已保存') }
 }
+
+function hex(c, a) { if (!c?.startsWith('#')) return `rgba(22,119,255,${a})`; const r=parseInt(c.slice(1,3),16),g=parseInt(c.slice(3,5),16),b=parseInt(c.slice(5,7),16); return `rgba(${r},${g},${b},${a})` }
 </script>
 
 <style scoped>
-.skill-card { cursor: pointer; border-radius: var(--radius-md); border: 1px solid var(--border-color); transition: all var(--transition-base); position: relative; }
-.skill-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-card-hover); border-color: var(--el-color-primary-light-7); }
-.skill-actions-top { position: absolute; top: 10px; right: 10px; z-index: 2; }
-.skill-main { display: flex; gap: 12px; margin-bottom: 14px; }
-.skill-icon { width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; border: 1px solid; flex-shrink: 0; }
-.skill-info { flex: 1; min-width: 0; }
-.skill-info h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; color: var(--text-main); }
-.skill-info p { color: var(--text-muted); font-size: 12px; margin: 0; line-height: 1.5; }
-.skill-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--border-color); }
+.skill-card { cursor:pointer; border-radius:10px; border:1px solid #e5e7eb; position:relative; transition:all .15s; }
+.skill-card:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,.06); }
+.skill-top { position:absolute; top:8px; right:8px; z-index:2; }
+.skill-main { display:flex; gap:10px; margin-bottom:10px; }
+.skill-icon { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; border:1px solid; flex-shrink:0; }
+.skill-info h3 { margin:0 0 4px; font-size:14px; font-weight:600; }
+.skill-info p { color:#94a3b8; font-size:12px; margin:0; line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.skill-footer { display:flex; justify-content:space-between; padding-top:8px; border-top:1px solid #f0f0f0; }
+
+.detail-meta { margin-bottom:8px; }
+.markdown-view { background:#1e293b; border-radius:8px; padding:16px; }
+.md-label { color:#94a3b8; font-size:11px; text-transform:uppercase; margin-bottom:8px; }
+.md-content { color:#e2e8f0; font-family:Consolas,monospace; font-size:13px; line-height:1.7; white-space:pre-wrap; max-height:400px; overflow-y:auto; }
+.detail-footer { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
 </style>

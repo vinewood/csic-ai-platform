@@ -16,7 +16,17 @@
       <div class="hist-list">
         <div v-for="c in convs" :key="c.id" class="hist-item" :class="{active:c.id===convId}" @click="loadConv(c)">
           <span class="hist-title">{{ c.title || '对话' }}</span>
-          <span class="hist-time">{{ c.time }}</span>
+          <el-dropdown trigger="click" @command="(cmd)=>histAction(cmd,c)">
+            <el-button link size="small" class="hist-btn" @click.stop><el-icon><MoreFilled /></el-icon></el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="pin">📌 置顶</el-dropdown-item>
+                <el-dropdown-item command="docx">💾 保存到本地(docx)</el-dropdown-item>
+                <el-dropdown-item command="skill">🧩 整理成技能</el-dropdown-item>
+                <el-dropdown-item command="delete" divided>🗑 删除</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
         <div v-if="convs.length===0" style="color:#bbb;font-size:11px;text-align:center;padding:10px">暂无历史</div>
       </div>
@@ -85,7 +95,7 @@
 
 <script setup>
 import { ref, onMounted, nextTick } from 'vue'
-import { Plus, UploadFilled, EditPen, Document, DataBoard, Notebook, MagicStick } from '@element-plus/icons-vue'
+import { Plus, UploadFilled, EditPen, Document, DataBoard, Notebook, MagicStick, MoreFilled } from '@element-plus/icons-vue'
 import * as Icons from '@element-plus/icons-vue'
 import { apiGet, apiDelete } from '../api.js'
 import { marked } from 'marked'
@@ -182,6 +192,41 @@ async function doSend() {
     }
   } catch (e) { last.content = `[错误] ${e.message}` }
   finally { thinking.value = false; await nextTick(); scrollBottom() }
+}
+
+async function histAction(cmd, c) {
+  if (cmd === 'delete') {
+    await apiDelete(`/api/chat/conversations/${c.id}`)
+    convs.value = convs.value.filter(x => x.id !== c.id)
+    if (convId.value === c.id) { convId.value = 'new'; msgs.value = [] }
+    ElMessage.success('已删除')
+  } else if (cmd === 'pin') {
+    convs.value = [c, ...convs.value.filter(x => x.id !== c.id)]
+    ElMessage.success('已置顶')
+  } else if (cmd === 'docx') {
+    ElMessage.info('正在生成 docx...')
+    const token = localStorage.getItem('csic_token')
+    const API_BASE = location.port === '5173' ? 'http://localhost:8000' : ''
+    try {
+      const r = await fetch(`${API_BASE}/api/export/docx`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ conversation_id: c.id })
+      })
+      if (r.ok) {
+        const blob = await r.blob(); const url = URL.createObjectURL(blob)
+        const a = document.createElement('a'); a.href = url; a.download = `${c.title||'对话'}.docx`; a.click()
+        ElMessage.success('下载完成')
+      } else { ElMessage.error('生成失败') }
+    } catch (e) { ElMessage.error(e.message) }
+  } else if (cmd === 'skill') {
+    const data = await apiGet(`/api/chat/conversations/${c.id}/messages`)
+    const content = data ? data.map(m=>`### ${m.role}\n${m.content}`).join('\n\n') : c.title
+    await apiPost('/api/skills', {
+      name: c.title || '新技能', description: '从对话提炼', category: '教学', icon: 'MagicStick', color: '#1677ff',
+      prompt: `你根据以下对话内容扮演AI助手角色：\n\n${content.slice(0,3000)}`
+    })
+    ElMessage.success('已整理成技能')
+  }
 }
 
 function render(t) {
