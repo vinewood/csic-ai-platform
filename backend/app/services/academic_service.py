@@ -147,7 +147,8 @@ def _get_deepseek_key() -> str:
         return key
     try:
         import sqlite3
-        conn = sqlite3.connect("data/csic.db")
+        db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "data", "csic.db")
+        conn = sqlite3.connect(db_path)
         row = conn.execute(
             "SELECT config_json FROM api_configs WHERE provider='deepseek' LIMIT 1"
         ).fetchone()
