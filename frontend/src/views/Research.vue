@@ -150,8 +150,7 @@ import {
   EditPen, Document, DataAnalysis, Notebook, MagicStick, Files, Connection, TrendCharts
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { apiPost } from '../api.js'
-import { getToken } from '../api.js'
+import { apiGet, apiPost, apiPut, apiUpload } from '../api.js'
 import { marked } from 'marked'
 
 // ====== 功能插件定义 ======
@@ -293,14 +292,7 @@ async function handleUpload(file) {
   loading.value = true
   
   try {
-    const token = getToken()
-    const API_BASE = window.location.port === '5173' ? 'http://localhost:8000' : ''
-    const resp = await fetch(`${API_BASE}/api/files/upload`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: formData,
-    })
-    const data = await resp.json()
+    const data = await apiUpload('/api/files/upload', formData)
     messages.value.push({ role: 'assistant', content: `文件已上传并解析：\n\n${data.result || data.summary || '文件处理完成'}` })
   } catch (e) {
     messages.value.push({ role: 'assistant', content: `[文件上传失败: ${e.message}]` })

@@ -284,8 +284,7 @@
             </el-row>
 
             <el-divider />
-
-            <template #header><span style="font-weight:700">Dify 知识库同步</span></template>
+            <div style="font-weight:700;margin-bottom:12px">Dify 知识库同步</div>
             <el-select v-model="difySync.kbId" placeholder="选择本地知识库" style="width:240px;margin-right:12px" @change="fetchDifyDatasets">
               <el-option v-for="kb in knowledgeBases" :key="kb.id" :label="kb.name" :value="kb.id" />
             </el-select>
@@ -625,7 +624,6 @@ onMounted(async () => {
     loadRss(),
     fetchIntegrations(),
     fetchKnowledgeBases()
-  ])
   ])
 })
 
