@@ -216,19 +216,51 @@
 
         <!-- Dify 集成 -->
         <el-tab-pane label="Dify集成" name="dify">
-          <el-card shadow="never">
+          <el-card shadow="never" style="margin-bottom:12px">
             <template #header><span style="font-weight:700">开源项目集成状态</span></template>
             <el-row :gutter="16">
               <el-col :span="8" v-for="item in integrations" :key="item.id">
                 <el-card shadow="hover" style="margin-bottom:12px">
                   <div style="display:flex;align-items:center;justify-content:space-between">
                     <strong>{{ item.name }}</strong>
-                    <el-tag :type="item.status==='online'?'success':'danger'" size="small">{{ item.status }}</el-tag>
+                    <el-tag :type="item.status==='online'?'success':'danger'" size="small">{{ item.status==='online'?'运行中':'离线' }}</el-tag>
                   </div>
                   <p style="color:#999;font-size:12px;margin-top:8px">{{ item.desc }}</p>
+                  <el-button size="small" v-if="item.url" style="margin-top:6px" @click="window.open(item.url)">打开</el-button>
                 </el-card>
               </el-col>
             </el-row>
+          </el-card>
+
+          <el-card shadow="never">
+            <template #header><span style="font-weight:700">Dify 知识引擎管理</span></template>
+            <el-row :gutter="12">
+              <el-col :xs="12" :sm="6" v-for="card in difyCards" :key="card.key">
+                <el-card shadow="hover" class="dify-card" @click="card.action()">
+                  <div style="font-size:32px;text-align:center;margin-bottom:8px">{{ card.icon }}</div>
+                  <div style="text-align:center;font-weight:600;font-size:14px">{{ card.title }}</div>
+                  <div style="text-align:center;color:#94a3b8;font-size:11px;margin-top:4px">{{ card.desc }}</div>
+                </el-card>
+              </el-col>
+            </el-row>
+
+            <el-divider />
+            <div style="font-weight:700;margin-bottom:8px">Dify 账号信息</div>
+            <el-descriptions :column="2" border size="small">
+              <el-descriptions-item label="管理员邮箱">admin@csic.cn</el-descriptions-item>
+              <el-descriptions-item label="管理员密码">***REMOVED-PASSWORD***</el-descriptions-item>
+              <el-descriptions-item label="初始数据集">6个（党建/船舶/教学/政策/测试/CSIC政策）</el-descriptions-item>
+              <el-descriptions-item label="集成方式">后端API代理 + DB直查</el-descriptions-item>
+            </el-descriptions>
+
+            <el-divider />
+            <div style="font-weight:700;margin-bottom:8px">扩展开源工具</div>
+            <el-descriptions :column="2" border size="small">
+              <el-descriptions-item label="dify_tools (Go)">{{ difyToolsStatus }}</el-descriptions-item>
+              <el-descriptions-item label="能力">PPT/Word生成 · 动态知识库 · DB查询</el-descriptions-item>
+              <el-descriptions-item label="gpt_academic">/opt/gpt_academic — 科研辅助引擎</el-descriptions-item>
+              <el-descriptions-item label="RSSHub">Docker部署 — 新闻聚合</el-descriptions-item>
+            </el-descriptions>
           </el-card>
         </el-tab-pane>
 
@@ -579,11 +611,35 @@ async function testVipApi() {
 
 // ========== Dify 集成 ==========
 const integrations = ref([])
+const difyHealth = ref(null)
+const difyToolsStatus = ref('检查中...')
+const difyUrl = ref('https://csic.thinkalike.com.cn/dify/')
+
+const difyCards = [
+  { key:'console', icon:'🔧', title:'Dify 控制台', desc:'管理知识库/应用/工作流', action:()=>window.open('/dify/') },
+  { key:'init', icon:'🔄', title:'重新初始化', desc:'重置Dify管理员账号', action:initDify },
+  { key:'kb', icon:'📚', title:'知识库管理', desc:'数据集/文档/检索', action:()=>window.open('/#/workspace/knowledge','_self') },
+  { key:'health', icon:'🏥', title:'健康检查', desc:'检查服务状态', action:testDifyStatusFn },
+]
 
 async function fetchIntegrations() {
   const res = await apiGet('/api/admin/integrations')
   if (res && res.integrations) integrations.value = res.integrations
 }
+
+async function initDify() {
+  try { await apiPost('/api/dify/init', {}); ElMessage.success('Dify已重新初始化') }
+  catch { ElMessage.warning('请手动访问Dify控制台完成初始化: admin@csic.cn / ***REMOVED-PASSWORD***') }
+}
+
+async function testDifyStatusFn() {
+  const res = await apiGet('/api/dify/health')
+  difyHealth.value = res || {}
+  ElMessage.success('检查完成: ' + (res?.status || '未响应'))
+}
+
+async function openDifyConsole() { window.open(difyUrl.value) }
+function goToKnowledge() { window.open('/#/workspace/knowledge', '_self') }
 
 // ========== 初始化 ==========
 onMounted(async () => {
@@ -591,7 +647,10 @@ onMounted(async () => {
     loadUsers(), loadModels(), loadRss(), loadEmailConfig(),
     loadApiConfigs(), loadUsage(), fetchIntegrations(),
   ])
+  testDifyStatusFn()
 })
+
+async function testDifyStatus() { testDifyStatusFn() }
 </script>
 
 <style scoped>
@@ -607,4 +666,6 @@ onMounted(async () => {
 .api-split .api-svc-desc { font-size: 11px; color: #94a3b8; margin-top: 2px; }
 .api-split .api-main { flex: 1; min-width: 0; padding-left: 4px; }
 .api-form-title { margin: 0 0 12px; font-size: 16px; font-weight: 700; color: var(--text-main); }
+.dify-card { cursor:pointer; border-radius:10px; border:1px solid #e5e7eb; transition:all .15s; padding:16px 8px; }
+.dify-card:hover { border-color:#1677ff; box-shadow:0 4px 12px rgba(22,119,255,.1); transform:translateY(-2px); }
 </style>
