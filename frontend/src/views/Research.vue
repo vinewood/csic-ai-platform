@@ -1,382 +1,461 @@
 <template>
-  <div>
+  <div class="academic-workspace">
+    <!-- Hero header — keep style -->
     <div class="csic-hero" style="background-image:url(https://images.unsplash.com/photo-1532619675605-1ede6c2ed2b0?w=1200&q=80);">
       <div class="hero-content">
         <h2>科研工作台</h2>
-        <p>智能选题 · 选题测评 · 文献检索 · 项目空间</p>
+        <p>AI 驱动的学术研究助手 · 基于 gpt_academic 引擎</p>
       </div>
     </div>
 
-    <el-card shadow="never" class="research-card">
-      <el-tabs v-model="tab" class="research-tabs">
+    <!-- Main workspace: left plugins + right chat -->
+    <div class="workspace-container">
+      <!-- ====== LEFT: 功能插件面板 ====== -->
+      <div class="plugin-panel">
+        <div class="panel-title">功能插件</div>
+        
+        <div class="plugin-group">
+          <div class="group-label">学术写作</div>
+          <div v-for="p in writingPlugins" :key="p.id" 
+            class="plugin-btn" :class="{ active: activePlugin === p.id }"
+            @click="activatePlugin(p)">
+            <el-icon :size="18"><component :is="p.icon" /></el-icon>
+            <span>{{ p.label }}</span>
+          </div>
+        </div>
 
-        <!-- ====== 智能选题 ====== -->
-        <el-tab-pane label="智能选题" name="topics">
-          <!-- AI 辅助选题 -->
-          <div class="topic-generator">
-            <h3>AI 智能选题生成</h3>
-            <p>输入研究方向或关键词，AI 为您推荐规范的学术选题</p>
+        <div class="plugin-group">
+          <div class="group-label">论文处理</div>
+          <div v-for="p in paperPlugins" :key="p.id" 
+            class="plugin-btn" :class="{ active: activePlugin === p.id }"
+            @click="activatePlugin(p)">
+            <el-icon :size="18"><component :is="p.icon" /></el-icon>
+            <span>{{ p.label }}</span>
+          </div>
+        </div>
+
+        <div class="plugin-group">
+          <div class="group-label">研究辅助</div>
+          <div v-for="p in auxPlugins" :key="p.id" 
+            class="plugin-btn" :class="{ active: activePlugin === p.id }"
+            @click="activatePlugin(p)">
+            <el-icon :size="18"><component :is="p.icon" /></el-icon>
+            <span>{{ p.label }}</span>
+          </div>
+        </div>
+
+        <div class="panel-divider"></div>
+        
+        <div class="model-selector">
+          <span class="model-label">模型</span>
+          <el-select v-model="selectedModel" size="small" style="width:100%">
+            <el-option label="DeepSeek V3" value="deepseek" />
+            <el-option label="千问 Max" value="qwen" />
+            <el-option label="智谱 GLM-4" value="zhipu" />
+          </el-select>
+        </div>
+
+        <div class="param-row">
+          <span>Temperature</span>
+          <el-slider v-model="temperature" :min="0" :max="2" :step="0.1" size="small" show-input />
+        </div>
+      </div>
+
+      <!-- ====== RIGHT: 对话工作区 ====== -->
+      <div class="chat-area">
+        <!-- 对话历史 -->
+        <div class="chat-messages" ref="msgBox">
+          <div v-if="messages.length === 0" class="welcome-area">
+            <div class="welcome-icon">
+              <el-icon :size="48"><Reading /></el-icon>
+            </div>
+            <h3>gpt_academic 科研助手</h3>
+            <p>选择一个功能插件开始，或直接在下方输入研究问题</p>
+            <div class="quick-actions">
+              <el-button v-for="q in quickStarts" :key="q.id" size="small" round @click="quickStart(q)">
+                {{ q.label }}
+              </el-button>
+            </div>
+          </div>
+
+          <div v-for="(msg, idx) in messages" :key="idx" class="msg-item" :class="msg.role">
+            <div class="msg-avatar">
+              <el-icon :size="20"><component :is="msg.role === 'user' ? UserFilled : Cpu" /></el-icon>
+            </div>
+            <div class="msg-content">
+              <div class="msg-text" v-html="renderMarkdown(msg.content)"></div>
+              <div class="msg-ops" v-if="msg.role === 'assistant' && msg.content">
+                <el-button link size="small" @click="copyText(msg.content)"><el-icon><CopyDocument /></el-icon></el-button>
+                <el-button link size="small" @click="regenerate(msg)"><el-icon><Refresh /></el-icon></el-button>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="loading" class="msg-item assistant">
+            <div class="msg-avatar"><el-icon :size="20"><Cpu /></el-icon></div>
+            <div class="msg-content">
+              <div class="thinking-dots"><span></span><span></span><span></span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 输入区域 -->
+        <div class="input-area">
+          <div class="plugin-hint" v-if="activePlugin">
+            <el-tag type="primary" size="small" closable @close="activePlugin = null">{{ pluginLabel }}</el-tag>
+            <span class="hint-text">{{ pluginHint }}</span>
+          </div>
+
+          <div class="input-row">
             <el-input
-              v-model="topicInput"
+              v-model="inputText"
               type="textarea"
               :rows="3"
-              placeholder="请输入您的研究方向、兴趣领域或关键词，如：基层党建与数字化转型、船舶工业高质量发展..."
+              :placeholder="inputPlaceholder"
+              resize="none"
+              @keydown.enter.ctrl="sendMessage"
             />
-            <div class="topic-actions">
-              <el-button type="primary" :icon="Lightning" @click="generateTopics">生成选题</el-button>
-              <el-button :icon="Refresh" @click="topicInput = ''">清空</el-button>
+          </div>
+
+          <div class="action-bar">
+            <div class="left-actions">
+              <el-upload
+                :show-file-list="false"
+                :before-upload="handleUpload"
+                accept=".pdf,.docx,.txt,.md"
+              >
+                <el-button circle size="small"><el-icon><UploadFilled /></el-icon></el-button>
+              </el-upload>
+              <el-button link size="small" @click="clearChat" :disabled="messages.length === 0">
+                <el-icon><Delete /></el-icon> 清空对话
+              </el-button>
+            </div>
+            <div class="right-actions">
+              <el-button @click="inputText = ''; activePlugin = null" :disabled="!inputText && !activePlugin">取消</el-button>
+              <el-button type="primary" @click="sendMessage" :loading="loading" :disabled="!inputText.trim()">
+                <el-icon><Promotion /></el-icon> 发送
+              </el-button>
             </div>
           </div>
-
-          <!-- 选题结果 -->
-          <div v-if="generatedTopics.length" class="topic-results">
-            <h4>推荐选题（{{ generatedTopics.length }} 个）</h4>
-            <div v-for="(t, i) in generatedTopics" :key="i" class="topic-item">
-              <div class="topic-num">{{ i + 1 }}</div>
-              <div class="topic-body">
-                <div class="topic-name">{{ t.name }}</div>
-                <div class="topic-desc">{{ t.desc }}</div>
-                <div class="topic-tags">
-                  <el-tag size="small" effect="light" type="primary">{{ t.field }}</el-tag>
-                  <el-tag size="small" effect="light" type="success">可行性 {{ t.feasibility }}</el-tag>
-                  <el-tag size="small" effect="light" type="warning">创新性 {{ t.innovation }}</el-tag>
-                </div>
-                <div class="topic-ops">
-                  <el-button link type="primary" size="small" :icon="EditPen" @click="useTopic(t)">采用选题</el-button>
-                  <el-button link type="primary" size="small" :icon="DataAnalysis" @click="evalTopic(t)">深度测评</el-button>
-                  <el-button link size="small" :icon="Share" @click="ElMessage.success('已复制')">分享</el-button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <el-divider />
-
-          <!-- 期刊选题方向 -->
-          <div class="journal-section">
-            <div class="section-hd">
-              <h4>期刊重点选题方向</h4>
-              <el-button text type="primary" size="small">查看更多 →</el-button>
-            </div>
-            <el-row :gutter="12">
-              <el-col :span="8" :xs="24" v-for="j in journals" :key="j.id" style="margin-bottom:10px;">
-                <el-card shadow="hover" class="journal-card">
-                  <div class="journal-name">{{ j.name }}</div>
-                  <div class="journal-year">{{ j.year }} · {{ j.issue }}</div>
-                  <div class="journal-topic">「{{ j.topic }}」</div>
-                </el-card>
-              </el-col>
-            </el-row>
-          </div>
-        </el-tab-pane>
-
-        <!-- ====== 选题测评 ====== -->
-        <el-tab-pane label="选题测评" name="evaluate">
-          <div class="eval-section">
-            <h3>选题测评</h3>
-            <p>输入您的选题名称，AI 从多个维度进行综合评估</p>
-            <el-input v-model="evalTopicTitle" placeholder="请输入您的选题名称，如：新时代基层党建引领乡村治理现代化的路径研究" />
-            <el-button type="primary" :icon="DataAnalysis" @click="doEvaluate" style="margin-top:12px;">开始测评</el-button>
-
-            <div v-if="evalResult" class="eval-result">
-              <el-row :gutter="16">
-                <el-col :span="6" :xs="12" v-for="d in evalResult.dimensions" :key="d.name">
-                  <el-card shadow="never" class="eval-dim">
-                    <div class="dim-score" :style="{color: d.color}">{{ d.score }}</div>
-                    <div class="dim-name">{{ d.name }}</div>
-                    <el-progress :percentage="d.score" :stroke-width="6" :color="d.color" :show-text="false" />
-                  </el-card>
-                </el-col>
-              </el-row>
-              <el-card shadow="never" class="eval-advice">
-                <template #header><span style="font-weight:600;">综合建议</span></template>
-                <p>{{ evalResult.advice }}</p>
-              </el-card>
-            </div>
-          </div>
-        </el-tab-pane>
-
-        <!-- ====== 文献检索 ====== -->
-        <el-tab-pane label="文献检索" name="literature">
-          <div class="section-intro">
-            <h3>学术文献检索</h3>
-            <p>聚合维普、AMiner 等学术数据源，支持关键词、作者、机构检索</p>
-          </div>
-          <div class="lit-search-bar">
-            <el-input v-model="litQuery" placeholder="输入关键词、论文标题、作者姓名..." style="flex:1;" clearable />
-            <el-select v-model="litSource" style="width:140px;">
-              <el-option label="全部来源" value="all" />
-              <el-option label="维普" value="vip" />
-              <el-option label="AMiner" value="aminer" />
-            </el-select>
-            <el-select v-model="litField" style="width:120px;">
-              <el-option label="关键词" value="keyword" />
-              <el-option label="标题" value="title" />
-              <el-option label="作者" value="author" />
-              <el-option label="机构" value="institution" />
-            </el-select>
-            <el-button type="primary" :icon="Search" @click="searchLiterature">检索</el-button>
-          </div>
-
-          <div v-if="litResults.length" class="lit-results">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-              <span style="font-size:13px;color:#4b5563;">共 {{ litResults.length }} 条结果</span>
-              <el-button text size="small" :icon="Download">导出引文</el-button>
-            </div>
-            <div v-for="(r, i) in litResults" :key="i" class="lit-item">
-              <div class="lit-num">{{ i + 1 }}</div>
-              <div class="lit-body">
-                <div class="lit-title">{{ r.title }}</div>
-                <div class="lit-authors">{{ r.authors }}</div>
-                <div class="lit-meta">{{ r.journal }} · {{ r.year }} · {{ r.citations }} 引用</div>
-                <div class="lit-abstract">{{ r.abstract }}</div>
-                <div class="lit-ops">
-                  <el-button link type="primary" size="small" :icon="Reading">查看</el-button>
-                  <el-button link size="small" :icon="Star">收藏</el-button>
-                  <el-button link size="small" :icon="Share">引用</el-button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div v-else-if="litSearched" class="lit-empty">
-            <el-icon :size="40" color="#d1d5db"><Search /></el-icon>
-            <p>未找到相关文献，请尝试其他关键词</p>
-          </div>
-        </el-tab-pane>
-
-        <!-- ====== 项目空间 ====== -->
-        <el-tab-pane label="项目空间" name="projects">
-          <el-row :gutter="12">
-            <el-col :xs="24" :sm="12" :lg="8" v-for="p in projects" :key="p.id" style="margin-bottom:12px;">
-              <el-card shadow="hover" class="proj-card" @click="selected = p">
-                <div class="proj-top">
-                  <div class="proj-icon" :style="{background: p.color + '12', color: p.color}">
-                    <el-icon :size="20"><component :is="p.icon" /></el-icon>
-                  </div>
-                  <el-tag size="small" :type="p.status==='进行中'?'success':'info'" effect="light">{{ p.status }}</el-tag>
-                </div>
-                <h4>{{ p.name }}</h4>
-                <p>{{ p.desc }}</p>
-                <div class="proj-meta">
-                  <span><UserFilled style="margin-right:3px;" />{{ p.members }} 人</span>
-                  <span><Document style="margin-right:3px;" />{{ p.papers }} 篇</span>
-                </div>
-                <el-progress :percentage="p.progress" :stroke-width="5" :show-text="false" color="#1677ff" />
-              </el-card>
-            </el-col>
-          </el-row>
-        </el-tab-pane>
-
-      </el-tabs>
-    </el-card>
-
-    <!-- 详情弹窗 -->
-    <el-dialog v-model="selected" title="项目详情" width="600px">
-      <template v-if="selected">
-        <el-descriptions :column="2" border>
-          <el-descriptions-item label="成员">{{ selected.members }} 人</el-descriptions-item>
-          <el-descriptions-item label="论文">{{ selected.papers }} 篇</el-descriptions-item>
-          <el-descriptions-item label="状态">{{ selected.status }}</el-descriptions-item>
-          <el-descriptions-item label="进度"><el-progress :percentage="selected.progress" :stroke-width="8" style="width:160px;" /></el-descriptions-item>
-          <el-descriptions-item label="描述" :span="2">{{ selected.desc }}</el-descriptions-item>
-        </el-descriptions>
-      </template>
-    </el-dialog>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
-import { Lightning, Refresh, EditPen, DataAnalysis, Share, UserFilled, Document, Search, Reading, Star, Download } from '@element-plus/icons-vue'
+import { ref, computed, nextTick } from 'vue'
+import { 
+  Reading, Cpu, UserFilled, Promotion, CopyDocument, Refresh, Delete, UploadFilled,
+  EditPen, Document, DataAnalysis, Notebook, MagicStick, Files, Connection, TrendCharts
+} from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { apiGet, apiPost } from '../api.js'
+import { apiPost } from '../api.js'
+import { getToken } from '../api.js'
+import { marked } from 'marked'
 
-const tab = ref('topics')
-const selected = ref(null)
+// ====== 功能插件定义 ======
+const writingPlugins = [
+  { id: 'topics', label: '课题选题生成', icon: MagicStick, hint: '输入研究方向，AI 生成规范的学术选题', placeholder: '请输入您的研究方向或领域，例如：基层党建数字化转型、船舶智能制造...' },
+  { id: 'evaluate', label: '选题测评', icon: DataAnalysis, hint: '对已有选题进行四维度综合评估', placeholder: '请输入您要评估的选题名称' },
+  { id: 'outline', label: '论文大纲生成', icon: Document, hint: '为研究课题生成完整的论文大纲', placeholder: '请输入论文主题，如：国有企业数字化转型路径研究' },
+]
 
-// ---- 加载状态 ----
-const loading = reactive({
-  generate: false,
-  evaluate: false,
-  search: false,
-  projects: false,
+const paperPlugins = [
+  { id: 'review', label: '文献综述', icon: Files, hint: '基于主题生成规范的文献综述', placeholder: '请输入文献综述的主题或关键词' },
+  { id: 'translate', label: '论文翻译', icon: Connection, hint: '学术论文中英互译，保持专业术语', placeholder: '请粘贴需要翻译的文本，或描述翻译需求' },
+  { id: 'polish', label: '论文润色', icon: EditPen, hint: '优化论文表达，修正语法错误', placeholder: '请粘贴需要润色的论文段落' },
+]
+
+const auxPlugins = [
+  { id: 'chat', label: '学术对话', icon: TrendCharts, hint: '自由提问，AI 助手提供学术建议', placeholder: '请输入您的研究问题...' },
+  { id: 'note', label: '会议纪要', icon: Notebook, hint: '将研究讨论转为结构化纪要', placeholder: '请粘贴会议或讨论的文字记录' },
+]
+
+const allPlugins = [...writingPlugins, ...paperPlugins, ...auxPlugins]
+
+const quickStarts = [
+  { id: 'q1', label: '帮我生成3个党建研究选题', prompt: '请帮我生成3个关于新时代党建工作的研究选题' },
+  { id: 'q2', label: '船舶工业高质量发展选题', prompt: '请为船舶工业高质量发展领域生成4个学术选题' },
+  { id: 'q3', label: '选题测评示例', prompt: '请评估选题"人工智能赋能基层党建创新路径研究"的学术价值' },
+  { id: 'q4', label: '文献综述示例', prompt: '请为主题"数字政府建设与治理现代化"撰写文献综述' },
+]
+
+// ====== 状态 ======
+const messages = ref([])
+const inputText = ref('')
+const activePlugin = ref(null)
+const loading = ref(false)
+const selectedModel = ref('deepseek')
+const temperature = ref(0.7)
+const msgBox = ref(null)
+
+// ====== 计算属性 ======
+const pluginLabel = computed(() => {
+  const p = allPlugins.find(p => p.id === activePlugin.value)
+  return p ? p.label : ''
+})
+const pluginHint = computed(() => {
+  const p = allPlugins.find(p => p.id === activePlugin.value)
+  return p ? p.hint : ''
+})
+const inputPlaceholder = computed(() => {
+  const p = allPlugins.find(p => p.id === activePlugin.value)
+  return p ? p.placeholder : '输入您的研究问题，按 Ctrl+Enter 发送...'
 })
 
-// ---- 智能选题 ----
-const topicInput = ref('')
-const generatedTopics = ref([])
+// ====== 激活插件 ======
+function activatePlugin(plugin) {
+  activePlugin.value = plugin.id
+  inputText.value = ''
+}
 
-async function generateTopics() {
-  if (!topicInput.value.trim()) { ElMessage.warning('请输入研究方向'); return }
-  loading.generate = true
+// ====== 快速开始 ======
+function quickStart(q) {
+  inputText.value = q.prompt
+  activePlugin.value = null
+  sendMessage()
+}
+
+// ====== 发送消息 ======
+async function sendMessage() {
+  const text = inputText.value.trim()
+  if (!text || loading.value) return
+
+  const plugin = allPlugins.find(p => p.id === activePlugin.value)
+  const title = plugin ? plugin.label : '学术助手'
+
+  messages.value.push({ role: 'user', content: text, title })
+  inputText.value = ''
+  loading.value = true
+  
+  await nextTick()
+  scrollBottom()
+
   try {
-    const res = await apiPost('/api/research/generate', { input: topicInput.value })
-    generatedTopics.value = res.data || res
-    ElMessage.success('选题生成完成')
+    // 路由到对应 API
+    const endpoint = getEndpoint(activePlugin.value)
+    const body = getRequestBody(activePlugin.value, text)
+    const res = await apiPost(endpoint, body)
+    
+    const result = res.result || res.data?.result || res.answer || '抱歉，未获得有效回复'
+    messages.value.push({ role: 'assistant', content: result })
   } catch (e) {
-    ElMessage.error('选题生成失败：' + (e.message || '未知错误'))
+    messages.value.push({ role: 'assistant', content: `[错误] ${e.message || '请求失败，请检查网络连接'}` })
   } finally {
-    loading.generate = false
+    loading.value = false
+    await nextTick()
+    scrollBottom()
   }
 }
 
-async function useTopic(t) {
-  try {
-    await apiPost('/api/research/adopt', { topic: t })
-    ElMessage.success('已采用选题: ' + t.name)
-  } catch (e) {
-    ElMessage.info('已采用选题: ' + t.name)
+function getEndpoint(pluginId) {
+  const map = {
+    topics: '/api/research/generate',
+    evaluate: '/api/research/evaluate',
+    outline: '/api/academic/outline',
+    review: '/api/academic/review',
+    translate: '/api/academic/translate',
+    polish: '/api/academic/polish',
+  }
+  return map[pluginId] || '/api/chat/blocking'
+}
+
+function getRequestBody(pluginId, text) {
+  const map = {
+    topics: { input: text },
+    evaluate: { title: text },
+    outline: { topic: text },
+    review: { topic: text },
+    translate: { text, target_lang: 'zh' },
+    polish: { text },
+  }
+  return map[pluginId] || { query: text }
+}
+
+// ====== 重新生成 ======
+function regenerate(msg) {
+  const idx = messages.value.indexOf(msg)
+  if (idx > 0) {
+    const userMsg = messages.value[idx - 1]
+    inputText.value = userMsg.content
+    messages.value = messages.value.slice(0, idx - 1)
+    sendMessage()
   }
 }
 
-function evalTopic(t) {
-  tab.value = 'evaluate'
-  evalTopicTitle.value = t.name
-  doEvaluate()
-}
-
-// ---- 选题测评 ----
-const evalTopicTitle = ref('')
-const evalResult = ref(null)
-
-async function doEvaluate() {
-  if (!evalTopicTitle.value.trim()) { ElMessage.warning('请输入选题名称'); return }
-  loading.evaluate = true
+// ====== 文件上传 ======
+async function handleUpload(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  
+  messages.value.push({ role: 'user', content: `📎 上传文件: ${file.name}`, title: '文件上传' })
+  loading.value = true
+  
   try {
-    const res = await apiPost('/api/research/evaluate', { title: evalTopicTitle.value })
-    evalResult.value = res.data || res
-    ElMessage.success('测评完成')
-  } catch (e) {
-    ElMessage.error('测评失败：' + (e.message || '未知错误'))
-  } finally {
-    loading.evaluate = false
-  }
-}
-
-// ---- 期刊方向 ----
-const journals = ref([
-  { id: 1, name: '中国社会科学', year: '2026', issue: '第3期', topic: '人工智能时代的社会治理创新' },
-  { id: 2, name: '政治学研究', year: '2026', issue: '第2期', topic: '新时代党的建设理论与实践创新' },
-  { id: 3, name: '管理世界', year: '2026', issue: '第5期', topic: '数字化转型与组织变革' },
-  { id: 4, name: '中国工业经济', year: '2026', issue: '第4期', topic: '制造业高质量发展与产业升级' },
-  { id: 5, name: '中国行政管理', year: '2026', issue: '第3期', topic: '数字政府建设与治理现代化' },
-  { id: 6, name: '公共管理学报', year: '2026', issue: '第2期', topic: '基层治理现代化的路径与机制' },
-])
-
-// ---- 文献检索 ----
-const litQuery = ref('')
-const litSource = ref('all')
-const litField = ref('keyword')
-const litSearched = ref(false)
-const litResults = ref([])
-
-async function searchLiterature() {
-  if (!litQuery.value.trim()) { ElMessage.warning('请输入检索关键词'); return }
-  loading.search = true
-  litSearched.value = true
-  try {
-    const res = await apiPost('/api/research/literature', {
-      query: litQuery.value,
-      source: litSource.value,
-      field: litField.value,
+    const token = getToken()
+    const API_BASE = window.location.port === '5173' ? 'http://localhost:8000' : ''
+    const resp = await fetch(`${API_BASE}/api/files/upload`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
     })
-    litResults.value = res.data || res
-    ElMessage.success('检索完成，共 ' + litResults.value.length + ' 条结果')
+    const data = await resp.json()
+    messages.value.push({ role: 'assistant', content: `文件已上传并解析：\n\n${data.result || data.summary || '文件处理完成'}` })
   } catch (e) {
-    // Fallback: 如果后端接口不可用，使用本地模拟数据
-    litResults.value = [
-      { title: '人工智能赋能基层党建的创新路径研究', authors: '张三, 李四, 王五', journal: '党建研究', year: '2026', citations: 32, abstract: '本文探讨了人工智能技术在基层党建工作中的应用场景、实现路径与风险防控，提出了"数据驱动+精准服务"的党建新模式。' },
-      { title: '数字化转型背景下国有企业党建工作创新研究', authors: '赵六, 钱七', journal: '国企管理', year: '2025', citations: 28, abstract: '基于对32家国有企业的调研数据，分析了数字化转型对党建工作的影响机制和创新方向。' },
-      { title: '新时代党校干部教育数字化转型的理论逻辑与实践路径', authors: '孙八, 周九, 吴十', journal: '中国党政干部论坛', year: '2026', citations: 15, abstract: '从技术赋能和制度创新两个维度分析了党校培训数字化转型的驱动因素、关键瓶颈与实施路径。' },
-      { title: 'AIGC在党建宣传中的应用探索与思考', authors: '郑一, 陈二', journal: '思想政治工作研究', year: '2025', citations: 21, abstract: '探索生成式AI在党建内容创作、传播方式优化、互动性提升等方面的应用案例与经验总结。' },
-    ]
-    ElMessage.success('检索完成（离线模式），共 ' + litResults.value.length + ' 条结果')
+    messages.value.push({ role: 'assistant', content: `[文件上传失败: ${e.message}]` })
   } finally {
-    loading.search = false
+    loading.value = false
   }
+  return false
 }
 
-// ---- 项目空间 ----
-const projects = ref([])
-
-onMounted(async () => {
-  loading.projects = true
+// ====== 工具 ======
+function clearChat() {
+  messages.value = []
+  activePlugin.value = null
+}
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => ElMessage.success('已复制'))
+}
+function renderMarkdown(text) {
+  if (!text) return ''
   try {
-    const res = await apiGet('/api/research/projects')
-    projects.value = res.data || res
-  } catch (e) {
-    // Fallback: 接口不可用时使用默认数据
-    projects.value = [
-      { id: 1, name: '新时代党建理论体系研究', desc: '构建党建工作理论框架', members: 5, papers: 12, status: '进行中', progress: 65, icon: 'Reading', color: '#1677ff' },
-      { id: 2, name: '船舶工业高质量发展路径', desc: '高质量发展评估体系与实施路径', members: 8, papers: 20, status: '进行中', progress: 80, icon: 'TrendCharts', color: '#10b981' },
-      { id: 3, name: '国企改革三年行动成效评估', desc: '量化评估研究', members: 3, papers: 6, status: '已完成', progress: 100, icon: 'DataAnalysis', color: '#f59e0b' },
-      { id: 4, name: '基层党建数字化转型', desc: '数字化工具赋能党建创新', members: 4, papers: 3, status: '进行中', progress: 40, icon: 'Cpu', color: '#8b5cf6' },
-      { id: 5, name: '企业党校教学创新研究', desc: '党校教学方法与模式创新', members: 6, papers: 8, status: '进行中', progress: 55, icon: 'Magnet', color: '#06b6d4' },
-      { id: 6, name: '干部培训效果评估模型', desc: '培训投入产出量化分析框架', members: 2, papers: 4, status: '规划中', progress: 10, icon: 'SetUp', color: '#ec4899' },
-    ]
-  } finally {
-    loading.projects = false
+    return marked.parse(text)
+  } catch {
+    return text
   }
-})
+}
+function scrollBottom() {
+  nextTick(() => {
+    if (msgBox.value) msgBox.value.scrollTop = msgBox.value.scrollHeight
+  })
+}
 </script>
 
 <style scoped>
-.research-card { border-radius: 8px; border: 1px solid var(--border-color); }
-.research-tabs :deep(.el-tabs__item) { font-size: 14px; }
+.academic-workspace { min-height: calc(100vh - 100px); }
 
-/* 智能选题 */
-.topic-generator {
-  background: #f8fafc; border-radius: 8px; padding: 20px; margin-bottom: 16px;
+/* ====== Workspace Container ====== */
+.workspace-container {
+  display: flex; gap: 0; height: calc(100vh - 180px);
+  margin: 12px 16px 0;
+  background: #fff; border-radius: 12px; border: 1px solid var(--border-color, #e5e7eb);
+  overflow: hidden;
 }
-.topic-generator h3 { margin: 0 0 4px; font-size: 16px; color: var(--text-main); }
-.topic-generator p { color: #94a3b8; font-size: 13px; margin: 0 0 12px; }
-.topic-actions { margin-top: 12px; display: flex; gap: 8px; }
 
-.topic-results { margin-bottom: 16px; }
-.topic-results h4 { font-size: 15px; margin: 0 0 12px; }
-.topic-item {
-  display: flex; gap: 14px; padding: 14px;
-  background: #fff; border: 1px solid var(--border-color); border-radius: 8px;
-  margin-bottom: 8px; transition: all .15s;
+/* ====== LEFT: Plugin Panel ====== */
+.plugin-panel {
+  width: 200px; min-width: 200px; 
+  background: #f8f9fb; border-right: 1px solid var(--border-color, #e5e7eb);
+  padding: 16px 12px; overflow-y: auto;
 }
-.topic-item:hover { border-color: #bae0ff; box-shadow: var(--shadow-card-hover); }
-.topic-num {
-  width: 28px; height: 28px; border-radius: 8px;
-  background: #1677ff; color: #fff; display: flex; align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 700; flex-shrink: 0;
+.panel-title {
+  font-size: 12px; color: #94a3b8; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 1px; margin-bottom: 12px; padding: 0 4px;
 }
-.topic-body { flex: 1; }
-.topic-name { font-size: 15px; font-weight: 600; color: var(--text-main); margin-bottom: 4px; }
-.topic-desc { font-size: 13px; color: #4b5563; margin-bottom: 8px; }
-.topic-tags { display: flex; gap: 6px; margin-bottom: 6px; }
-.topic-ops { display: flex; gap: 8px; }
+.plugin-group { margin-bottom: 16px; }
+.group-label {
+  font-size: 11px; color: #94a3b8; text-transform: uppercase; font-weight: 600;
+  padding: 0 4px; margin-bottom: 6px; letter-spacing: 0.5px;
+}
+.plugin-btn {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  border-radius: 8px; cursor: pointer; font-size: 13px; color: #374151;
+  transition: all .15s; margin-bottom: 2px;
+}
+.plugin-btn:hover { background: #e8ecf1; }
+.plugin-btn.active { background: #1677ff12; color: #1677ff; font-weight: 600; }
 
-/* 期刊 */
-.section-hd { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.section-hd h4 { margin: 0; font-size: 15px; }
-.journal-card { cursor: pointer; border-radius: 8px; border: 1px solid var(--border-color); }
-.journal-card:hover { border-color: #bae0ff; }
-.journal-name { font-weight: 600; font-size: 13px; color: var(--text-main); }
-.journal-year { font-size: 11px; color: #94a3b8; margin: 4px 0; }
-.journal-topic { font-size: 12px; color: #1677ff; font-style: italic; }
+.panel-divider { height: 1px; background: #e5e7eb; margin: 16px 0; }
 
-/* 选题测评 */
-.eval-section { padding: 4px; }
-.eval-section h3 { font-size: 16px; margin: 0 0 4px; }
-.eval-section > p { color: #94a3b8; font-size: 13px; margin: 0 0 12px; }
-.eval-result { margin-top: 20px; }
-.eval-dim { text-align: center; border-radius: 8px; }
-.dim-score { font-size: 32px; font-weight: 800; }
-.dim-name { font-size: 13px; color: var(--text-secondary); margin: 4px 0 8px; }
-.eval-advice { margin-top: 12px; border-radius: 8px; }
+.model-selector { margin-bottom: 14px; }
+.model-label {
+  font-size: 12px; color: #94a3b8; font-weight: 600; display: block; margin-bottom: 4px;
+}
+.param-row {
+  font-size: 12px; color: #6b7280; margin-top: 4px;
+}
+.param-row :deep(.el-slider__input) { width: 50px; }
 
-/* 项目 */
-.proj-card { cursor: pointer; border-radius: 8px; border: 1px solid var(--border-color); }
-.proj-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card-hover); }
-.proj-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.proj-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
-.proj-card h4 { margin: 0 0 6px; font-size: 14px; font-weight: 600; color: var(--text-main); }
-.proj-card p { color: #94a3b8; font-size: 12px; margin: 0 0 8px; line-height: 1.5; }
-.proj-meta { display: flex; gap: 12px; font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
-.proj-meta span { display: inline-flex; align-items: center; }
+/* ====== RIGHT: Chat Area ====== */
+.chat-area {
+  flex: 1; display: flex; flex-direction: column; min-width: 0;
+}
+
+/* Messages */
+.chat-messages {
+  flex: 1; overflow-y: auto; padding: 20px 24px;
+}
+.chat-messages::-webkit-scrollbar { width: 6px; }
+.chat-messages::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 3px; }
+
+.welcome-area {
+  text-align: center; padding: 60px 20px;
+}
+.welcome-icon { color: #1677ff; margin-bottom: 16px; opacity: 0.6; }
+.welcome-area h3 { font-size: 20px; color: #1f2937; margin: 0 0 8px; }
+.welcome-area p { color: #94a3b8; font-size: 14px; margin: 0 0 20px; }
+.quick-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+
+.msg-item { display: flex; gap: 12px; margin-bottom: 20px; }
+.msg-item.user { flex-direction: row-reverse; }
+.msg-avatar {
+  width: 32px; height: 32px; border-radius: 8px; display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0;
+}
+.msg-item.user .msg-avatar { background: #1677ff12; color: #1677ff; }
+.msg-item.assistant .msg-avatar { background: #10b98112; color: #10b981; }
+
+.msg-content { max-width: 75%; }
+.msg-item.user .msg-content { text-align: right; }
+.msg-text {
+  background: #f8f9fb; border-radius: 12px; padding: 12px 16px;
+  font-size: 14px; line-height: 1.7; color: #1f2937;
+}
+.msg-item.user .msg-text { background: #1677ff; color: #fff; }
+.msg-text :deep(h1), .msg-text :deep(h2), .msg-text :deep(h3) { margin: 8px 0 4px; font-size: 16px; color: inherit; }
+.msg-text :deep(p) { margin: 4px 0; }
+.msg-text :deep(ul), .msg-text :deep(ol) { margin: 4px 0; padding-left: 18px; }
+.msg-text :deep(code) { background: #e5e7eb44; padding: 1px 4px; border-radius: 3px; font-size: 13px; }
+.msg-text :deep(pre) { background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 8px; overflow-x: auto; font-size: 12px; margin: 8px 0; }
+.msg-text :deep(blockquote) { border-left: 3px solid #1677ff; margin: 4px 0; padding: 4px 12px; color: #6b7280; }
+
+.msg-ops { margin-top: 6px; display: flex; gap: 4px; opacity: 0.5; }
+.msg-ops:hover { opacity: 1; }
+
+.thinking-dots { display: flex; gap: 6px; padding: 12px 16px; }
+.thinking-dots span {
+  width: 8px; height: 8px; border-radius: 50%; background: #94a3b8;
+  animation: thinking 1.4s infinite ease-in-out both;
+}
+.thinking-dots span:nth-child(1) { animation-delay: -0.32s; }
+.thinking-dots span:nth-child(2) { animation-delay: -0.16s; }
+@keyframes thinking {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
+}
+
+/* ====== Input Area ====== */
+.input-area { border-top: 1px solid var(--border-color, #e5e7eb); padding: 12px 20px 16px; }
+.plugin-hint { margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.hint-text { font-size: 12px; color: #94a3b8; }
+
+.input-row :deep(.el-textarea__inner) {
+  border-radius: 10px; font-size: 14px; line-height: 1.6;
+  background: #f8f9fb; border-color: #e5e7eb;
+}
+.input-row :deep(.el-textarea__inner:focus) { border-color: #1677ff; }
+
+.action-bar {
+  display: flex; justify-content: space-between; align-items: center; margin-top: 10px;
+}
+.left-actions, .right-actions { display: flex; align-items: center; gap: 8px; }
+
+/* ====== Responsive ====== */
+@media (max-width: 768px) {
+  .plugin-panel { display: none; }
+  .workspace-container { margin: 0; border-radius: 0; height: calc(100vh - 160px); }
+  .msg-content { max-width: 90%; }
+}
 </style>
