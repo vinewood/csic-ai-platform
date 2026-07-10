@@ -85,10 +85,18 @@
         </el-upload>
       </div>
       <el-table :data="detailDocs" stripe size="small" v-loading="docsLoading">
-        <el-table-column prop="name" label="文档" min-width="200"><template #default="{row}">{{ row.name }}</template></el-table-column>
-        <el-table-column label="状态" width="120"><template #default="{row}"><el-tag size="small" :type="row.indexing_status==='completed'?'success':row.indexing_status==='error'?'danger':'warning'">{{ row.display_status || row.indexing_status }}</el-tag></template></el-table-column>
-        <el-table-column label="大小" width="90"><template #default="{row}">{{ row.file_size ? (row.file_size/1024).toFixed(0)+'KB' : '-' }}</template></el-table-column>
-        <el-table-column label="段落" width="70"><template #default="{row}">{{ row.segment_count || 0 }}</template></el-table-column>
+        <el-table-column prop="name" label="文档" min-width="180"><template #default="{row}">{{ row.name }}</template></el-table-column>
+        <el-table-column label="状态/进度" width="180">
+          <template #default="{row}">
+            <div style="display:flex;align-items:center;gap:6px">
+              <el-tag size="small" :type="row.status==='completed'?'success':row.status==='error'?'danger':row.status==='indexing'?'warning':'info'">
+                {{ statusLabel(row.status || row.display_status || row.indexing_status) }}
+              </el-tag>
+              <el-progress v-if="row.status==='indexing'||row.status==='pending'" :percentage="row.progress||10" :stroke-width="4" style="width:60px" :show-text="false" />
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="大小" width="80"><template #default="{row}">{{ row.file_size ? (row.file_size/1024).toFixed(0)+'KB' : '-' }}</template></el-table-column>
         <el-table-column label="操作" width="70"><template #default="{row}"><el-popconfirm title="删除此文档？" @confirm="delDoc(row.id)"><template #reference><el-button link type="danger" size="small">删除</el-button></template></el-popconfirm></template></el-table-column>
       </el-table>
     </el-dialog>
@@ -158,6 +166,7 @@ async function openDataset(ds) {
 }
 
 async function uploadDoc(file) {
+  if (!detailDs.value) return
   const fd = new FormData()
   fd.append('file', file)
   docsLoading.value = true
@@ -165,16 +174,38 @@ async function uploadDoc(file) {
     const token = localStorage.getItem('csic_token')
     const B = location.port === '5173' ? 'http://localhost:8000' : ''
     const r = await fetch(`${B}/api/dify/datasets/${detailDs.value.id}/documents/upload`, {
-      method: 'POST', headers: { Authorization: `Bearer ${token}` },
-      body: fd
+      method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd
     })
-    ElMessage.success('上传成功，Dify 正在处理中...')
-    await openDataset(detailDs.value)
+    const result = await r.json()
+    ElMessage.success(`上传成功: ${result.name}，正在处理中...`)
     await refresh()
+    await openDataset(detailDs.value)
+
+    // Poll for progress
+    if (result.id) {
+      let attempts = 0
+      const poll = setInterval(async () => {
+        if (attempts++ > 30) { clearInterval(poll); return }
+        try {
+          const s = await apiGet(`/api/dify/documents/${result.id}/status`)
+          if (s && (s.status === 'completed' || s.status === 'error')) {
+            clearInterval(poll)
+            if (s.status === 'completed') ElMessage.success(`✓ ${s.name} 处理完成`)
+            else ElMessage.error(`✗ ${s.name}: ${s.error || '处理失败'}`)
+            await openDataset(detailDs.value); await refresh()
+          }
+        } catch {}
+      }, 2000)
+    }
   } catch (e) {
-    ElMessage.error('上传失败')
+    ElMessage.error('上传失败: ' + (e.message || ''))
   }
   docsLoading.value = false
+}
+
+function statusLabel(s) {
+  const map = { completed: '已完成', indexing: '处理中', pending: '等待中', error: '失败', stored: '已存储', waiting: '等待中' }
+  return map[s] || s || '未知'
 }
 
 async function delDoc(docId) {

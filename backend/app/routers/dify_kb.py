@@ -116,44 +116,82 @@ async def list_documents(dataset_id: str, page: int = 1, limit: int = 30, curren
     """列出数据集文档（DB直查）"""
     docs = []
     try:
-        lines = _dify_db_query(
-            f"SELECT id, name, indexing_status, file_size, word_count, "
-            f"segment_count, display_status "
-            f"FROM documents WHERE dataset_id='{dataset_id}' "
-            f"ORDER BY created_at DESC LIMIT {limit} OFFSET {(page-1)*limit}"
-        )
-        for line in lines:
-            parts = line.split("|||")
-            if len(parts) >= 5:
+        # First try kb_documents (our tracking DB with progress info)
+        import sqlite3
+        conn = sqlite3.connect("/www/wwwroot/csic.thinkalike.com.cn/data/csic.db")
+        try:
+            rows = conn.execute(
+                "SELECT id, name, file_size, word_count, status, progress, error, dify_doc_id "
+                "FROM kb_documents WHERE dataset_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                (dataset_id, limit, (page-1)*limit)
+            ).fetchall()
+            for row in rows:
                 docs.append({
-                    "id": parts[0], "name": parts[1],
-                    "indexing_status": parts[2] if parts[2] != "\\N" else "waiting",
-                    "file_size": int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 0,
-                    "word_count": int(parts[4]) if len(parts) > 4 and parts[4].isdigit() else 0,
-                    "segment_count": int(parts[5]) if len(parts) > 5 and parts[5].isdigit() else 0,
-                    "display_status": parts[6] if len(parts) > 6 and parts[6] != "\\N" else "",
+                    "id": row[0], "name": row[1], "file_size": row[2], "word_count": row[3],
+                    "status": row[4], "progress": row[5], "error": row[6],
+                    "dify_doc_id": row[7], "indexing_status": row[4], "display_status": row[4],
+                    "segment_count": 0
                 })
+        except: pass
+        conn.close()
+
+        # Also query Dify DB for any docs not in tracking DB
+        if not docs:
+            lines = _dify_db_query(
+                f"SELECT d.id, d.name, d.indexing_status, d.file_size, d.word_count, "
+                f"d.segment_count, d.display_status, d.error "
+                f"FROM documents d WHERE d.dataset_id='{dataset_id}' "
+                f"ORDER BY d.created_at DESC LIMIT {limit} OFFSET {(page-1)*limit}"
+            )
+            for line in lines:
+                parts = line.split("|||")
+                if len(parts) >= 5:
+                    docs.append({
+                        "id": parts[0], "name": parts[1],
+                        "indexing_status": parts[2] or "waiting",
+                        "file_size": int(parts[3]) if len(parts)>3 and parts[3].strip().lstrip("-").isdigit() else 0,
+                        "word_count": int(parts[4]) if len(parts)>4 and parts[4].strip().lstrip("-").isdigit() else 0,
+                        "segment_count": int(parts[5]) if len(parts)>5 and parts[5].strip().lstrip("-").isdigit() else 0,
+                        "display_status": parts[6] or "", "error": parts[7] or "",
+                        "status": parts[2] or "waiting", "progress": 100 if parts[2]=="completed" else 50,
+                    })
     except: pass
     return {"data": docs}
 
 
 @router.post("/datasets/{dataset_id}/documents/upload")
 async def upload_document(dataset_id: str, file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
-    """上传文档到 Dify 数据集"""
-    token = await _dify_token()
+    """上传文档 — 存入本地 + Dify DB（worker自动处理）"""
+    from ..services.kb_storage import save_uploaded_doc, update_doc_progress
     content = await file.read()
-    async with httpx.AsyncClient(timeout=120) as c:
-        r = await c.post(
-            f"{DIFY_CONSOLE}/datasets/{dataset_id}/documents",
-            headers={"Authorization": f"Bearer {token}"},
-            files={"file": (file.filename or "doc", content, "application/octet-stream")},
-            data={"data_source": "upload_file"}
-        )
-        if r.status_code < 400:
-            data = r.json()
-            # 标记需要启动 worker 处理
-            return {"id": data.get("id", ""), "name": file.filename, "status": "uploaded", "note": "Dify worker 正在处理中"}
-        raise HTTPException(status_code=500, detail=f"上传失败: {r.text[:200]}")
+    result = save_uploaded_doc(dataset_id, file.filename or "document", content, current_user.get("username", ""))
+    update_doc_progress()
+    return result
+
+
+@router.get("/datasets/{dataset_id}/documents/progress")
+async def documents_progress(dataset_id: str, current_user: dict = Depends(get_current_user)):
+    """获取文档处理进度统计"""
+    from ..services.kb_storage import get_kb_stats, update_doc_progress
+    update_doc_progress()
+    return {"dataset_id": dataset_id, **get_kb_stats()}
+
+
+@router.get("/documents/{doc_id}/status")
+async def document_status(doc_id: str, current_user: dict = Depends(get_current_user)):
+    """获取单个文档处理状态和进度"""
+    import sqlite3
+    conn = sqlite3.connect("/www/wwwroot/csic.thinkalike.com.cn/data/csic.db")
+    try:
+        row = conn.execute(
+            "SELECT id, name, status, progress, error FROM kb_documents WHERE id=? OR dify_doc_id=?",
+            (doc_id, doc_id)
+        ).fetchone()
+        if row:
+            return {"id": row[0], "name": row[1], "status": row[2], "progress": row[3], "error": row[4]}
+    finally:
+        conn.close()
+    return {"status": "not_found"}
 
 
 @router.delete("/datasets/{dataset_id}/documents/{doc_id}")
