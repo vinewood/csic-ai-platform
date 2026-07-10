@@ -39,10 +39,27 @@ async def _ai_stream(prompt: str, model: str = "deepseek"):
                     except: pass
     yield "data: [DONE]\n\n"
 
-# ====== 学术搜索 ======
+# ====== 学术搜索 — 真实 AMiner API 优先 ======
 @router.post("/search")
 async def academic_search(query: str = Form(...), model: str = Form("deepseek"), current_user: dict = Depends(get_current_user)):
-    """AMiner风格AI增强学术搜索"""
+    """AMiner 优先 — 真实 API + AI 增强"""
+    
+    # 尝试 AMiner API
+    try:
+        from ..services.aminer_service import comprehensive_search
+        aminer_results = comprehensive_search(query, search_type="all", size=5)
+        
+        # 如果有真实结果，返回结构化数据
+        has_data = any(
+            (not isinstance(v, dict)) or (not v.get("error")) 
+            for v in aminer_results.values()
+        )
+        if has_data:
+            return {"source": "aminer", "data": aminer_results, "query": query}
+    except Exception:
+        pass
+    
+    # Fallback: AI 增强搜索
     prompt = f"""你是学术搜索专家。请搜索并分析以下研究课题，提供：
 1. **研究概况** - 该领域当前研究热点和趋势（2-3段）
 2. **关键文献** - 5篇该领域重要的代表性论文（标题、作者、年份、核心贡献）
@@ -139,9 +156,9 @@ async def upload_paper(file: UploadFile = File(...), func: str = Form("read"), c
     except: text += "[PDF解析失败，请检查文件]"
     
     prompt_map = {
-        "read": f"你是学术审读专家。请深度解读以下论文，按"研究背景-核心贡献-研究方法-主要发现-局限性"5个维度分析：\n\n{text[:8000]}",
-        "review": f"你是审稿人。请对以下论文进行学术评审（创新性/方法/写作/修改建议）：\n\n{text[:6000]}",
-        "summary": f"请用300字总结以下论文的核心内容：\n\n{text[:5000]}",
+        "read": f'你是学术审读专家。请深度解读以下论文，按「研究背景-核心贡献-研究方法-主要发现-局限性」5个维度分析：\n\n{text[:8000]}',
+        "review": f'你是审稿人。请对以下论文进行学术评审（创新性/方法/写作/修改建议）：\n\n{text[:6000]}',
+        "summary": f'请用300字总结以下论文的核心内容：\n\n{text[:5000]}',
         "translate": f"请将以下论文翻译为中文，保持学术风格：\n\n{text[:5000]}",
     }
     return StreamingResponse(_ai_stream(prompt_map.get(func, prompt_map["read"])), 
