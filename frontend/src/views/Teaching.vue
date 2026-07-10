@@ -51,6 +51,11 @@
             <el-option v-for="m in models" :key="m" :label="m" :value="m" />
           </el-select>
         </template>
+        <el-select v-model="kbId" size="small" style="width:140px;margin-left:4px" clearable placeholder="知识库">
+          <el-option v-for="kb in kbList" :key="kb.id" :label="kb.name" :value="kb.id">
+            <span>{{ kb.name }}</span><span style="color:#bbb;font-size:10px;margin-left:6px">{{ kb.count }}篇</span>
+          </el-option>
+        </el-select>
         <el-button size="small" :icon="Plus" @click="newConv" circle />
         <el-button size="small" @click="saveResult" :disabled="msgs.length===0" style="margin-left:auto">保存</el-button>
       </div>
@@ -135,15 +140,16 @@ const quickBtns = [
 ]
 
 const input = ref(''), mode = ref('single'), model = ref('deepseek'), multiModels = ref(['deepseek','qwen'])
-const thinking = ref(false), msgs = ref([]), skillId = ref(''), funcId = ref('')
+const thinking = ref(false), msgs = ref([]), skillId = ref(''), funcId = ref(''), kbId = ref(''), kbList = ref([])
 const skills = ref([]), convs = ref([]), convId = ref('new')
 const models = ['deepseek','qwen','zhipu','kimi','minimax','doubao']
 const bodyRef = ref(null)
 
 onMounted(async () => {
-  const [s, c] = await Promise.all([apiGet('/api/skills'), apiGet('/api/chat/conversations')])
+  const [s, c, k] = await Promise.all([apiGet('/api/skills'), apiGet('/api/chat/conversations'), apiGet('/api/dify/datasets/list')])
   if (s) skills.value = s
   if (c) convs.value = c.map(x => ({ id:x.id, title:x.title||'对话', time:x.created_at?.slice(0,10)||'' }))
+  if (k) kbList.value = k
 })
 
 function newConv() { convId.value = 'new'; msgs.value = [] }

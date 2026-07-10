@@ -9,6 +9,9 @@
         <el-select v-if="tab==='chat'" v-model="model" size="small" style="width:110px;margin-left:auto">
           <el-option v-for="m in models" :key="m" :label="m" :value="m" />
         </el-select>
+        <el-select v-if="tab==='chat'" v-model="kbId" size="small" style="width:140px;margin-left:4px" clearable placeholder="Dify知识库">
+          <el-option v-for="kb in kbList" :key="kb.id" :label="kb.name" :value="kb.id"><span>{{ kb.name }}</span><span style="color:#bbb;font-size:10px;margin-left:6px">{{ kb.count }}篇</span></el-option>
+        </el-select>
       </div>
     </div>
 
@@ -146,11 +149,12 @@ const writeFuncs = [{id:'topics',label:'选题生成',icon:MagicStick,placeholde
 const toolFuncs = [{id:'evaluate',label:'选题测评',icon:DataAnalysis,placeholder:'请输入要评估的选题'},{id:'search',label:'学术搜索',icon:Search,placeholder:'请输入搜索主题'},{id:'trend',label:'趋势分析',icon:TrendCharts,placeholder:'请输入研究领域'}]
 
 // Chat
-const chatInput = ref(''), chatMsgs = ref([]), chatLoading = ref(false), chatBody = ref(null), skillId = ref(''), skillList = ref([]), convs = ref([]), convId = ref('new')
+const chatInput = ref(''), chatMsgs = ref([]), chatLoading = ref(false), chatBody = ref(null), skillId = ref(''), skillList = ref([]), convs = ref([]), convId = ref('new'), kbId = ref(''), kbList = ref([])
 
 onMounted(async ()=>{
-  const [s,c] = await Promise.all([apiGet('/api/skills'), apiGet('/api/research-chat/conversations')])
+  const [s,c,k] = await Promise.all([apiGet('/api/skills'), apiGet('/api/research-chat/conversations'), apiGet('/api/dify/datasets/list')])
   if(s) skillList.value = s; if(c) convs.value = c.map(x=>({id:x.id,title:x.title||'对话',time:x.created_at?.slice(0,10)||''}))
+  if(k) kbList.value = k
 })
 function newConv(){ convId.value='new'; chatMsgs.value=[] }
 async function loadConv(c){ convId.value=c.id; const d=await apiGet(`/api/research-chat/conversations/${c.id}/messages`); chatMsgs.value=d?d.map(m=>({role:m.role,content:m.content})):[] }
