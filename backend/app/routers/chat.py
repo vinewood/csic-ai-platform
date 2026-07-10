@@ -52,12 +52,30 @@ async def chat_stream_endpoint(req: ChatRequest, current_user: dict = Depends(ge
 
 @router.post("/blocking")
 async def chat_blocking(req: ChatRequest, current_user: dict = Depends(get_current_user)):
-    """阻塞式对话"""
+    """阻塞式对话 — 直连 DeepSeek LLM"""
+    query = req.query
+    user_id = str(current_user.get("id", "default"))
+    
     try:
-        result = await DifyService.chat_blocking(query=req.query, user=str(current_user.get("id", "default")))
-        return result
+        from ..services.dify_service import chat_stream
+        full = ""
+        async for chunk in chat_stream(query=query, model=req.model or "deepseek", user_id=user_id):
+            full += chunk
+        if full.strip():
+            return {"result": full, "model": req.model or "deepseek"}
+    except Exception as e:
+        pass
+    
+    # Last resort: call our academic engine
+    try:
+        from ..services.academic_service import AcademicEngine
+        result = await AcademicEngine.chat(query)
+        if result and "请先配置" not in result:
+            return {"result": result, "model": "deepseek"}
     except Exception:
-        raise HTTPException(status_code=502, detail="Dify 服务不可用")
+        pass
+    
+    raise HTTPException(status_code=502, detail="所有 AI 服务暂不可用，请检查 DeepSeek API Key 配置")
 
 
 @router.get("/conversations")

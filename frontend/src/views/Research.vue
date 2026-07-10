@@ -236,16 +236,35 @@ async function sendMessage() {
     const endpoint = getEndpoint(activePlugin.value)
     const body = getRequestBody(activePlugin.value, text)
     const res = await apiPost(endpoint, body)
-    
-    const result = res.result || res.data?.result || res.answer || '抱歉，未获得有效回复'
+    const result = extractResult(res, activePlugin.value)
     messages.value.push({ role: 'assistant', content: result })
   } catch (e) {
-    messages.value.push({ role: 'assistant', content: `[错误] ${e.message || '请求失败，请检查网络连接'}` })
+    messages.value.push({ role: 'assistant', content: `[错误] ${e.message || '请求失败'}` })
   } finally {
     loading.value = false
     await nextTick()
     scrollBottom()
   }
+}
+
+function extractResult(res, pluginId) {
+  if (!res) return '抱歉，未获得有效回复'
+  if (typeof res === 'string') return res
+  if (res.result) return res.result
+  if (res.answer) return res.answer
+  if (res.data?.result) return res.data.result
+  if (res.topics && Array.isArray(res.topics)) {
+    return res.topics.map((t, i) =>
+      `**${i + 1}. ${t.title}**  \n${t.description || ''}  \n领域: ${t.field || '综合'} | 可行性: ${t.feasibility || '?'} | 创新性: ${t.innovation || '?'}`
+    ).join('\n\n---\n\n')
+  }
+  if (res.dimensions) {
+    const dims = res.dimensions.map(d =>
+      `**${d.name || d.label}**: ${d.score || d.academic_value?.score}分 — ${d.detail || ''}`
+    ).join('\n')
+    return `${dims}\n\n**综合建议**: ${res.advice || '无'}`
+  }
+  return res.message || res.detail || JSON.stringify(res).slice(0, 500)
 }
 
 function getEndpoint(pluginId) {

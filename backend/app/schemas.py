@@ -31,7 +31,7 @@ class UserCreate(BaseModel):
 class ChatRequest(BaseModel):
     query: str
     conversation_id: Optional[str] = ""
-    model: Optional[str] = "qwen"
+    model: Optional[str] = "deepseek"
     skill_id: Optional[str] = ""
     kb_id: Optional[str] = ""
     temperature: Optional[float] = 0.7
