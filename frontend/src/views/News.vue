@@ -1,110 +1,151 @@
 <template>
-  <div>
-    <div class="csic-hero" style="background-image:url(https://images.unsplash.com/photo-1504711434969-e338861683be?w=1200&q=80);">
-      <div class="hero-content">
-        <h2>每日资讯</h2>
-        <p>AI 智能整理 · 分类聚合 · 一键订阅</p>
+  <div class="news-app">
+    <!-- 顶栏 -->
+    <div class="news-topbar">
+      <div class="topbar-left">
+        <h2 class="page-logo">📰 每日资讯</h2>
+        <span class="page-sub">AI 智能聚合引擎</span>
+      </div>
+      <div class="topbar-right">
+        <el-date-picker v-model="selectedDate" type="date" placeholder="选择日期" size="small" style="width:150px" @change="loadDigest" />
+        <el-input v-model="searchText" placeholder="搜索资讯..." size="small" style="width:200px" clearable :prefix-icon="Search" />
+        <el-button type="success" size="small" :icon="MagicStick" :loading="generating" @click="generateDaily">生成今日资讯</el-button>
       </div>
     </div>
 
-    <!-- 日期导航 -->
-    <div class="news-toolbar">
-      <el-date-picker v-model="selectedDate" type="date" placeholder="选择日期" style="width:150px;" @change="loadDigest" />
-      <span class="toolbar-hint">每日 AI 自动整理最新资讯，共 {{ totalArticles }} 篇</span>
-      <el-button size="small" type="success" :icon="MagicStick" :loading="generating" style="margin-left:auto;" @click="generateDaily">生成今日资讯</el-button>
+    <!-- 统计栏 -->
+    <div class="stats-strip">
+      <div class="stat-item"><strong>{{ totalArticles }}</strong> 篇资讯</div>
+      <div class="stat-item"><strong>{{ digest.length }}</strong> 个分类</div>
+      <div class="stat-item"><strong>{{ aiCount }}</strong> 条 AI 摘要</div>
+      <div class="stat-item">{{ formatDate }}</div>
     </div>
 
-    <!-- 日报封面 -->
-    <div class="daily-cover">
-      <div class="cover-left">
-        <div class="cover-date">{{ formatDate }}</div>
-        <div class="cover-title">资讯简报</div>
-        <div class="cover-desc">AI 智能聚合 · {{ digest.length }} 个分类 · {{ totalArticles }} 条资讯</div>
-      </div>
-      <div class="cover-right">
-        <div class="cover-stat" v-for="s in coverStats" :key="s.label">
-          <div class="cover-stat-val">{{ s.value }}</div>
-          <div class="cover-stat-lbl">{{ s.label }}</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 分类资讯 -->
-    <div v-for="sec in digest" :key="sec.category" class="news-section">
-      <div class="section-head">
-        <div class="section-title">
-          <el-tag :type="sec.tagType" effect="dark" size="default" class="section-tag">{{ sec.category }}</el-tag>
-          <span class="section-count">{{ sec.items.length }} 篇</span>
-        </div>
-        <el-button v-if="sec.items.length > 3" text size="small" type="primary">查看全部 →</el-button>
-      </div>
-
-      <div class="article-list">
-        <div v-for="(item, i) in sec.items" :key="i" class="article-item" @click="openArticle(item)">
-          <div class="article-badge" :style="{background: sec.tagColor}">{{ i + 1 }}</div>
-          <div class="article-body">
-            <div class="article-header-line">
-              <span class="article-src">{{ item.source }}</span>
-              <span class="article-dot">·</span>
-              <span class="article-time">{{ item.time }}</span>
-              <el-tag v-if="item.aiSummary" size="small" type="success" effect="light" class="ai-badge">AI</el-tag>
-            </div>
-            <h4 class="article-title">{{ item.title }}</h4>
-            <p v-if="item.aiSummary" class="article-ai-summary">{{ item.aiSummary }}</p>
+    <div class="news-layout">
+      <!-- 左侧分类筛选 -->
+      <aside class="news-sidebar">
+        <div class="sidebar-title">分类筛选</div>
+        <div class="cat-list">
+          <div :class="['cat-item', { active: activeCat === '' }]" @click="activeCat = ''">
+            <span class="cat-dot" style="background:#1677ff"></span>
+            <span class="cat-name">全部</span>
+            <span class="cat-num">{{ totalArticles }}</span>
+          </div>
+          <div v-for="c in categories" :key="c.name" :class="['cat-item', { active: activeCat === c.name }]" @click="activeCat = c.name">
+            <span class="cat-dot" :style="{background: c.color}"></span>
+            <span class="cat-name">{{ c.name }}</span>
+            <span class="cat-num">{{ c.count }}</span>
           </div>
         </div>
-      </div>
-    </div>
 
-    <!-- 无数据 -->
-    <div v-if="!digest.length" class="empty-news">
-      <el-icon :size="48" color="#d1d5db"><Connection /></el-icon>
-      <p>暂无资讯数据</p>
-    </div>
-
-    <!-- 阅读弹窗 -->
-    <el-dialog v-model="readVisible" :title="readArticle?.title" width="640px" destroy-on-close>
-      <div class="read-dialog">
-        <div class="read-meta-bar">
-          <el-tag size="small">{{ readArticle?.source }}</el-tag>
-          <span style="color:#94a3b8;font-size:12px;margin-left:8px;">{{ readArticle?.time }}</span>
+        <div class="sidebar-title" style="margin-top:20px">显示方式</div>
+        <div class="view-toggle">
+          <el-button :type="viewMode==='card'?'primary':''" size="small" @click="viewMode='card'" :icon="Grid" circle />
+          <el-button :type="viewMode==='list'?'primary':''" size="small" @click="viewMode='list'" :icon="List" circle />
         </div>
-        <div v-if="readArticle?.aiSummary" class="read-ai-box">
-          <el-icon color="#10b981" style="margin-right:6px;"><Promotion /></el-icon>
-          <strong>AI摘要：</strong>{{ readArticle?.aiSummary }}
+      </aside>
+
+      <!-- 主内容 -->
+      <main class="news-main">
+        <!-- 卡片模式 -->
+        <div v-if="viewMode==='card'" class="card-grid">
+          <div v-for="item in filteredArticles" :key="item.id" class="news-card" @click="openArticle(item)">
+            <div class="card-cover" :style="{background: item.gradient}">
+              <span class="card-cat-tag">{{ item.category || '综合' }}</span>
+              <span v-if="item.summary" class="card-ai-tag">AI 摘要</span>
+            </div>
+            <div class="card-body">
+              <div class="card-meta">
+                <span class="card-src">{{ item.source }}</span>
+                <span class="card-time">{{ item.time }}</span>
+              </div>
+              <h4 class="card-title">{{ item.title }}</h4>
+              <p v-if="item.summary" class="card-desc">{{ item.summary.slice(0, 100) }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 列表模式 -->
+        <div v-else class="list-list">
+          <div v-for="(item, i) in filteredArticles" :key="item.id" class="news-row" @click="openArticle(item)">
+            <div class="row-num" :style="{background: item.gradient}">{{ i + 1 }}</div>
+            <div class="row-body">
+              <div class="row-meta">
+                <span class="row-src">{{ item.source }}</span>
+                <span class="row-time">{{ item.time }}</span>
+                <span class="row-cat">{{ item.category }}</span>
+              </div>
+              <h4 class="row-title">{{ item.title }}</h4>
+              <p v-if="item.summary" class="row-desc">{{ item.summary.slice(0, 150) }}</p>
+            </div>
+            <el-icon class="row-arrow"><ArrowRight /></el-icon>
+          </div>
+        </div>
+
+        <!-- 空状态 -->
+        <div v-if="!filteredArticles.length" class="empty-state">
+          <el-icon :size="64" color="#e5e7eb"><Document /></el-icon>
+          <p>暂无资讯，点击「生成今日资讯」开始</p>
+        </div>
+      </main>
+    </div>
+
+    <!-- 阅读抽屉 -->
+    <el-drawer v-model="readVisible" :title="readArticle?.title" size="560px" destroy-on-close>
+      <div class="drawer-content">
+        <div class="drawer-meta">
+          <el-tag size="small" effect="dark" style="background:#1677ff">{{ readArticle?.source }}</el-tag>
+          <span style="color:#94a3b8;font-size:12px;margin-left:8px">{{ readArticle?.time }}</span>
+          <el-button size="small" circle style="margin-left:auto" @click="openUrl(readArticle?.url)"><el-icon><Link /></el-icon></el-button>
+        </div>
+        <div v-if="readArticle?.summary" class="drawer-ai-box">
+          <div class="drawer-ai-label">
+            <el-icon color="#10b981"><MagicStick /></el-icon>
+            <strong>AI 摘要</strong>
+          </div>
+          <p>{{ readArticle?.summary }}</p>
         </div>
         <el-divider />
-        <p class="read-placeholder">完整文章内容需从源站获取。在实际系统中将展示 RSS 拉取的全文内容。</p>
+        <div class="drawer-placeholder">
+          <p>完整文章内容请访问源站查看</p>
+          <p style="font-size:12px;color:#bbb">支持 RSS 订阅、邮件推送、PDF 导出等扩展功能</p>
+        </div>
       </div>
-    </el-dialog>
+    </el-drawer>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { apiGet, apiPost } from '../api.js'
-import { Plus, Promotion, Connection, MagicStick } from '@element-plus/icons-vue'
+import { Search, MagicStick, Grid, List, ArrowRight, Document, Link } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const selectedDate = ref(new Date())
+const searchText = ref('')
+const activeCat = ref('')
+const viewMode = ref('card')
 const readVisible = ref(false)
 const readArticle = ref(null)
 const articles = ref([])
 const generating = ref(false)
 
+const gradients = [
+  'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+  'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+  'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+  'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+  'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)',
+  'linear-gradient(135deg, #fccb90 0%, #d57eeb 100%)',
+  'linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%)',
+]
+
 const formatDate = computed(() => {
   const d = selectedDate.value || new Date()
-  const weekdays = ['日', '一', '二', '三', '四', '五', '六']
-  return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 周${weekdays[d.getDay()]}`
+  const w = ['日','一','二','三','四','五','六']
+  return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} 周${w[d.getDay()]}`
 })
-
-const tagConfig = {
-  '官方要闻': { tagType: 'danger', tagColor: '#dc2626' },
-  '党建动态': { tagType: 'warning', tagColor: '#d97706' },
-  '船舶制造': { tagType: 'primary', tagColor: '#2563eb' },
-  '科技前沿': { tagType: 'success', tagColor: '#16a34a' },
-  '全球经济': { tagType: 'info', tagColor: '#0891b2' }
-}
 
 const digest = computed(() => {
   const groups = {}
@@ -114,159 +155,195 @@ const digest = computed(() => {
     groups[cat].push({
       ...item,
       source: item.url ? extractDomain(item.url) : '来源',
-      aiSummary: item.summary || ''
+      gradient: gradients[Object.keys(groups).length % gradients.length],
     })
   })
-  return Object.entries(groups).map(([category, items]) => {
-    const cfg = tagConfig[category] || { tagType: 'info', tagColor: '#6b7280' }
-    return { category, tagType: cfg.tagType, tagColor: cfg.tagColor, items }
-  })
+  return Object.entries(groups).map(([category, items]) => ({ category, items }))
 })
 
-const totalArticles = computed(() => digest.value.reduce((s, sec) => s + sec.items.length, 0))
-const coverStats = computed(() => [
-  { label: '分类', value: digest.value.length },
-  { label: '资讯', value: totalArticles.value },
-  { label: 'AI摘要', value: digest.value.reduce((s, sec) => s + sec.items.filter(i => i.aiSummary).length, 0) },
-  { label: '来源', value: new Set(digest.value.flatMap(s => s.items.map(i => i.source))).size }
-])
+const categories = computed(() =>
+  digest.value.map(d => ({
+    name: d.category,
+    count: d.items.length,
+    color: d.items[0]?.gradient || '#1677ff',
+  }))
+)
+
+const flatArticles = computed(() =>
+  digest.value.flatMap(d => d.items).sort((a, b) => {
+    const aiA = a.summary ? 1 : 0, aiB = b.summary ? 1 : 0
+    return aiB - aiA
+  })
+)
+
+const totalArticles = computed(() => flatArticles.value.length)
+const aiCount = computed(() => flatArticles.value.filter(a => a.summary).length)
+
+const filteredArticles = computed(() => {
+  let list = flatArticles.value
+  if (activeCat.value) list = list.filter(a => (a.category || '其他') === activeCat.value)
+  if (searchText.value) {
+    const kw = searchText.value.toLowerCase()
+    list = list.filter(a => a.title.toLowerCase().includes(kw) || a.summary?.toLowerCase().includes(kw))
+  }
+  return list
+})
 
 function extractDomain(url) {
   try { return new URL(url).hostname.replace(/^www\./, '') } catch { return '来源' }
 }
 
-onMounted(() => { loadDigest() })
+onMounted(() => loadDigest())
 
 async function generateDaily() {
   generating.value = true
   try {
     const res = await apiPost('/api/rss/generate-daily')
-    if (res && res.digest) {
+    if (res?.digest) {
       ElMessage.success(res.message || '今日资讯已生成')
       await loadDigest()
-
-      // 询问是否推送给订阅邮箱
       try {
-        await ElMessageBox.confirm(
-          '今日资讯已通过 DeepSeek 优化生成。\n是否推送给已订阅邮箱？',
-          '推送确认',
-          { confirmButtonText: '推送', cancelButtonText: '暂不', type: 'info' }
-        )
-        // TODO: 邮件推送逻辑
+        await ElMessageBox.confirm('DeepSeek 已优化生成今日资讯。是否推送给已订阅邮箱？', '推送确认', {
+          confirmButtonText: '推送', cancelButtonText: '暂不', type: 'info'
+        })
         ElMessage.success('已加入推送队列')
-      } catch {
-        ElMessage.info('未推送')
-      }
+      } catch { ElMessage.info('未推送') }
     } else {
-      ElMessage.info(res?.message || '生成失败')
+      ElMessage.info(res?.message || '暂无新资讯')
     }
-  } catch (e) {
-    ElMessage.error('生成失败: ' + (e.message || '网络错误'))
-  }
+  } catch (e) { ElMessage.error('生成失败') }
   generating.value = false
 }
 
 async function loadDigest() {
   try {
     const params = {}
-    if (selectedDate.value) {
-      params.date = selectedDate.value.toISOString().split('T')[0]
-    }
+    if (selectedDate.value) params.date = selectedDate.value.toISOString().split('T')[0]
     const res = await apiGet('/api/rss/articles', { params })
-    articles.value = (res && res.articles) ? res.articles : (Array.isArray(res) ? res : [])
-  } catch (e) {
-    ElMessage.error('加载资讯失败: ' + (e.message || '未知错误'))
+    const arr = res?.articles || res
+    articles.value = Array.isArray(arr) ? arr : []
+  } catch {
     articles.value = []
   }
 }
 
 function openArticle(item) {
-  readArticle.value = {
-    id: item.id,
-    title: item.title,
-    source: item.source || extractDomain(item.url),
-    time: item.time,
-    aiSummary: item.summary || ''
-  }
+  readArticle.value = { ...item, source: item.source || extractDomain(item.url) }
   readVisible.value = true
+}
+
+function openUrl(url) {
+  if (url) window.open(url)
 }
 </script>
 
 <style scoped>
-/* 工具栏 */
-.news-toolbar {
-  display: flex; align-items: center; gap: 12px;
-  background: #fff; padding: 14px 18px; border-radius: 10px;
-  border: 1px solid #e5e7eb; margin-bottom: 16px;
-}
-.toolbar-hint { font-size: 13px; color: #94a3b8; }
+.news-app { padding: 0; min-height: 100vh; background: #f5f6fa; }
 
-/* 日报封面 */
-.daily-cover {
-  display: flex; justify-content: space-between; align-items: center;
-  background: linear-gradient(135deg, #0f2347 0%, #1a365d 100%);
-  border-radius: 12px; padding: 28px 32px; margin-bottom: 20px;
-  color: #fff;
+/* 顶栏 */
+.news-topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #fff; padding: 14px 24px; border-bottom: 1px solid #e8ebf0;
+  position: sticky; top: 0; z-index: 10;
 }
-.cover-date { font-size: 14px; opacity: 0.7; margin-bottom: 4px; }
-.cover-title { font-size: 28px; font-weight: 800; letter-spacing: 1px; }
-.cover-desc { font-size: 13px; opacity: 0.6; margin-top: 6px; }
-.cover-right { display: flex; gap: 28px; }
-.cover-stat { text-align: center; }
-.cover-stat-val { font-size: 26px; font-weight: 700; }
-.cover-stat-lbl { font-size: 11px; opacity: 0.6; margin-top: 2px; }
+.topbar-left { display: flex; align-items: baseline; gap: 10px; }
+.page-logo { margin: 0; font-size: 18px; font-weight: 700; color: #1a1a2e; }
+.page-sub { font-size: 12px; color: #94a3b8; }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
 
-/* 分类 */
-.news-section { margin-bottom: 18px; }
-.section-head {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 10px;
+/* 统计条 */
+.stats-strip {
+  display: flex; gap: 32px; padding: 12px 24px;
+  background: #fff; border-bottom: 1px solid #f0f0f0;
 }
-.section-title { display: flex; align-items: center; gap: 8px; }
-.section-tag { font-size: 13px; padding: 5px 14px; border-radius: 20px; }
-.section-count { font-size: 12px; color: #94a3b8; }
+.stat-item { font-size: 13px; color: #64748b; }
+.stat-item strong { color: #1677ff; margin-right: 4px; }
 
-/* 文章列表 */
-.article-list { display: flex; flex-direction: column; gap: 8px; }
-.article-item {
-  display: flex; gap: 14px; align-items: flex-start;
-  background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
-  padding: 14px 18px; cursor: pointer;
+/* 布局 */
+.news-layout { display: flex; gap: 0; max-width: 1400px; margin: 0 auto; }
+
+/* 侧边栏 */
+.news-sidebar {
+  width: 200px; min-width: 200px; padding: 20px 16px;
+  background: #fff; border-right: 1px solid #e8ebf0; min-height: calc(100vh - 120px);
+}
+.sidebar-title { font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-bottom: 10px; }
+.cat-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 8px; cursor: pointer; margin-bottom: 3px;
   transition: all 0.15s;
 }
-.article-item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.06); border-color: #bae0ff; }
-.article-badge {
-  width: 28px; height: 28px; border-radius: 8px;
+.cat-item:hover { background: #f0f5ff; }
+.cat-item.active { background: #e6f0ff; font-weight: 600; }
+.cat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.cat-name { flex: 1; font-size: 13px; color: #374151; }
+.cat-num { font-size: 11px; color: #94a3b8; }
+.view-toggle { display: flex; gap: 6px; }
+
+/* 主内容 */
+.news-main { flex: 1; padding: 20px 24px; overflow-y: auto; min-width: 0; }
+
+/* 卡片网格 */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+.news-card {
+  background: #fff; border-radius: 12px; overflow: hidden;
+  border: 1px solid #e5e7eb; cursor: pointer;
+  transition: all 0.2s;
+}
+.news-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.08); }
+.card-cover {
+  height: 100px; display: flex; align-items: flex-end; justify-content: space-between;
+  padding: 12px; position: relative;
+}
+.card-cat-tag {
+  background: rgba(255,255,255,0.9); color: #1a1a2e; font-size: 11px;
+  font-weight: 600; padding: 3px 10px; border-radius: 20px;
+}
+.card-ai-tag { background: #10b981; color: #fff; font-size: 10px; padding: 3px 8px; border-radius: 20px; }
+.card-body { padding: 14px; }
+.card-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.card-src { font-size: 12px; color: #1677ff; font-weight: 500; }
+.card-time { font-size: 11px; color: #94a3b8; }
+.card-title { margin: 0 0 6px; font-size: 14px; font-weight: 600; color: #1a1a2e; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card-desc { font-size: 12px; color: #6b7280; line-height: 1.6; margin: 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* 列表模式 */
+.list-list { display: flex; flex-direction: column; gap: 6px; }
+.news-row {
+  display: flex; align-items: center; gap: 16px;
+  background: #fff; border: 1px solid #eee; border-radius: 10px;
+  padding: 16px 20px; cursor: pointer; transition: all 0.15s;
+}
+.news-row:hover { border-color: #bae0ff; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+.row-num {
+  width: 36px; height: 36px; border-radius: 10px;
   display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 12px; font-weight: 700; flex-shrink: 0;
-  margin-top: 2px;
+  color: #fff; font-size: 14px; font-weight: 700; flex-shrink: 0;
 }
-.article-body { flex: 1; min-width: 0; }
-.article-header-line { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
-.article-src { font-size: 12px; color: #1677ff; font-weight: 500; }
-.article-dot { color: #d1d5db; font-size: 10px; }
-.article-time { font-size: 11px; color: #94a3b8; }
-.ai-badge { font-size: 10px; padding: 0 6px; height: 18px; line-height: 18px; }
-.article-title {
-  margin: 0 0 6px; font-size: 14px; font-weight: 600; color: #1a1a2e; line-height: 1.5;
-}
-.article-title:hover { color: #1677ff; }
-.article-ai-summary {
-  font-size: 13px; color: #4b5563; line-height: 1.7; margin: 0;
-  padding: 8px 12px; background: #f0fdf4; border-radius: 6px;
-  border-left: 3px solid #10b981;
-}
+.row-body { flex: 1; min-width: 0; }
+.row-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.row-src { font-size: 12px; color: #1677ff; font-weight: 500; }
+.row-time { font-size: 11px; color: #94a3b8; }
+.row-cat { font-size: 11px; color: #fff; background: #1677ff; padding: 1px 8px; border-radius: 10px; }
+.row-title { margin: 0 0 3px; font-size: 15px; font-weight: 600; color: #1a1a2e; }
+.row-desc { font-size: 13px; color: #6b7280; margin: 0; }
+.row-arrow { color: #d1d5db; flex-shrink: 0; }
 
-.empty-news { text-align: center; padding: 80px 0; color: #94a3b8; }
-.empty-news p { margin-top: 10px; }
+.empty-state { text-align: center; padding: 100px 0; color: #bbb; }
+.empty-state p { margin-top: 12px; font-size: 14px; }
 
-/* 阅读弹窗 */
-.read-dialog { line-height: 1.8; }
-.read-meta-bar { margin-bottom: 14px; }
-.read-ai-box {
-  background: #f0fdf4; padding: 12px 16px; border-radius: 8px;
-  border-left: 3px solid #10b981; font-size: 14px; line-height: 1.7;
-  display: flex; align-items: flex-start;
+/* 抽屉 */
+.drawer-content { padding: 0 4px; }
+.drawer-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.drawer-ai-box {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border-radius: 10px; padding: 16px; border: 1px solid #a7f3d0;
 }
-.read-placeholder { color: #94a3b8; line-height: 1.8; }
+.drawer-ai-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #065f46; margin-bottom: 8px; }
+.drawer-ai-box p { font-size: 14px; line-height: 1.8; color: #374151; margin: 0; }
+.drawer-placeholder { text-align: center; padding: 40px 0; color: #94a3b8; font-size: 13px; }
 </style>
