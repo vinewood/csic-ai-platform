@@ -1,55 +1,54 @@
 """RSS 抓取服务 —— 集成 RSSHub"""
 
-import feedparser
+import feedparser, re
 from typing import List, Dict
 import httpx
+from html import unescape
 
 RSSHUB_URL = "http://localhost:1200"
 
 
+def _clean_html(text: str) -> str:
+    """去除 HTML 标签和多余空白，只保留纯文本"""
+    if not text: return ""
+    text = re.sub(r'<[^>]+>', '', text)
+    text = re.sub(r'&[a-z]+;', ' ', text)
+    text = unescape(text)
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()[:500]
+
+
 async def fetch_from_rsshub(route: str) -> List[Dict]:
-    """通过本地 RSSHub 实例抓取"""
-    if not route:
-        return []
+    if not route: return []
     try:
         url = f"{RSSHUB_URL}{route}"
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(url, follow_redirects=True)
             if resp.status_code == 200:
-                # RSSHub 返回 RSS XML
                 feed = feedparser.parse(resp.text)
-                articles = []
-                for entry in feed.entries[:20]:
-                    articles.append({
-                        "title": entry.get("title", ""),
-                        "link": entry.get("link", ""),
-                        "summary": entry.get("summary", entry.get("description", "")),
-                        "published": entry.get("published", ""),
-                    })
-                return articles
-    except Exception:
-        pass
+                return [{
+                    "title": _clean_html(e.get("title", "")),
+                    "link": e.get("link", ""),
+                    "summary": _clean_html(e.get("summary", e.get("description", ""))),
+                    "published": e.get("published", ""),
+                } for e in feed.entries[:20]]
+    except Exception: pass
     return []
 
 
 async def fetch_rss(url: str) -> List[Dict]:
-    """抓取 RSS 源并返回文章列表"""
     try:
         feed = feedparser.parse(url)
-        articles = []
-        for entry in feed.entries[:20]:
-            articles.append({
-                "title": entry.get("title", ""),
-                "link": entry.get("link", ""),
-                "summary": entry.get("summary", entry.get("description", "")),
-                "published": entry.get("published", ""),
-            })
-        return articles
+        return [{
+            "title": _clean_html(e.get("title", "")),
+            "link": e.get("link", ""),
+            "summary": _clean_html(e.get("summary", e.get("description", ""))),
+            "published": e.get("published", ""),
+        } for e in feed.entries[:20]]
     except Exception:
         return []
 
 
-# 知名党建媒体 RSSHub 路由映射
 PARTY_MEDIA_ROUTES = {
     "新华网": "/xinhua/news",
     "人民网": "/people/opinion",
