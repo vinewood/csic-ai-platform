@@ -30,18 +30,20 @@
             <el-table-column label="角色" width="80">
               <template #default="{ row }"><el-tag size="small" :type="row.role==='admin'?'':'info'">{{ row.role==='admin'?'管理员':'用户' }}</el-tag></template>
             </el-table-column>
-            <el-table-column label="操作" width="200" fixed="right">
+            <el-table-column label="操作" width="260" fixed="right">
               <template #default="{ row }">
                 <template v-if="row.status === 'pending'">
-                  <el-button link type="success" size="small" @click="approveUser(row)">通过</el-button>
+                  <el-button type="success" size="small" @click="approveUser(row)">审批通过</el-button>
                   <el-popconfirm title="确定拒绝该注册？" @confirm="rejectUser(row)">
-                    <template #reference><el-button link type="danger" size="small">拒绝</el-button></template>
+                    <template #reference><el-button type="danger" size="small" style="margin-left:6px">拒绝</el-button></template>
                   </el-popconfirm>
                 </template>
-                <el-button link type="primary" size="small" @click="openUserDialog(row)">编辑</el-button>
-                <el-popconfirm title="确定删除此用户？" @confirm="deleteUser(row)">
-                  <template #reference><el-button link type="danger" size="small">删除</el-button></template>
-                </el-popconfirm>
+                <template v-else>
+                  <el-button size="small" @click="openUserDialog(row)">编辑</el-button>
+                  <el-popconfirm title="确定删除此用户？" @confirm="deleteUser(row)">
+                    <template #reference><el-button type="danger" size="small" style="margin-left:6px">删除</el-button></template>
+                  </el-popconfirm>
+                </template>
               </template>
             </el-table-column>
           </el-table>
