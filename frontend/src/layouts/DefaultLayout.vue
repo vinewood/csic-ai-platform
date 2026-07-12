@@ -82,19 +82,30 @@ import { ref, computed, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowDown, UserFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { apiPut } from '../api.js'
+import { apiGet, apiPut } from '../api.js'
 
 const route = useRoute()
 const router = useRouter()
 const headerEl = ref(null)
 
-const userInfo = computed(() => {
-  try { return JSON.parse(localStorage.getItem('csic_user') || '{}') }
-  catch { return {} }
+const userInfo = reactive({ name: '', role: '', email: '', real_name: '' })
+
+// 从 localStorage 初始化 + API 获取真实角色
+onMounted(async () => {
+  try {
+    const cached = JSON.parse(localStorage.getItem('csic_user') || '{}')
+    if (cached.name) Object.assign(userInfo, cached)
+  } catch {}
+  // 从后端获取最新角色信息
+  const me = await apiGet('/api/auth/me')
+  if (me) {
+    Object.assign(userInfo, me)
+    localStorage.setItem('csic_user', JSON.stringify(userInfo))
+  }
 })
 
-const userName = computed(() => userInfo.value.name || '管理员')
-const userRole = computed(() => userInfo.value.role || 'user')
+const userName = computed(() => userInfo.name || '管理员')
+const userRole = computed(() => userInfo.role || 'user')
 
 const tabs = computed(() => {
   const parent = route.matched.find(r => r.path === '/workspace')
@@ -118,7 +129,7 @@ const profileLoading = ref(false)
 const profileForm = reactive({ email: '', real_name: '', password: '' })
 
 onMounted(() => {
-  const u = userInfo.value
+  const u = userInfo
   profileForm.email = u.email || ''
   profileForm.real_name = u.real_name || ''
 })
@@ -134,7 +145,7 @@ async function saveProfile() {
     ElMessage.success('个人信息已更新')
     profileVisible.value = false
     // 更新缓存
-    const u = userInfo.value
+    const u = userInfo
     if (profileForm.email) u.email = profileForm.email
     if (profileForm.real_name) u.real_name = profileForm.real_name
     localStorage.setItem('csic_user', JSON.stringify(u))

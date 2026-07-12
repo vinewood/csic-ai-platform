@@ -34,15 +34,15 @@
             <p>中船党校 AI智能助手</p>
           </div>
 
-          <el-form :model="form" label-width="0" size="default">
+          <el-form :model="form" label-width="0" size="default" @submit.prevent="login">
             <el-form-item>
-              <el-input v-model="form.username" placeholder="用户名" clearable :prefix-icon="User" />
+              <el-input v-model="form.username" placeholder="用户名" clearable :prefix-icon="User" @keyup.enter="login" />
             </el-form-item>
             <el-form-item>
-              <el-input v-model="form.password" type="password" placeholder="密码" show-password :prefix-icon="Lock" />
+              <el-input v-model="form.password" type="password" placeholder="密码" show-password :prefix-icon="Lock" @keyup.enter="login" />
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" class="login-btn" :loading="loading" @click="login">
+              <el-button type="primary" class="login-btn" :loading="loading" @click="login" native-type="submit">
                 登 录
               </el-button>
             </el-form-item>

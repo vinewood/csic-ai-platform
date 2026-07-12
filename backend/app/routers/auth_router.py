@@ -64,7 +64,17 @@ async def register(req: UserCreate, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/me", response_model=dict)
-async def get_me(current_user: dict = Depends(get_current_user)):
+async def get_me(current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """返回当前用户完整信息"""
+    result = await db.execute(select(User).where(User.id == current_user["id"]))
+    user = result.scalar_one_or_none()
+    if user:
+        return {
+            "id": user.id, "username": user.username,
+            "name": user.username, "role": user.role,
+            "email": user.email or "", "real_name": user.real_name or "",
+            "status": user.status,
+        }
     return current_user
 
 
