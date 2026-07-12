@@ -16,13 +16,28 @@
             <el-button type="primary" size="default" :icon="Plus" @click="openUserDialog()">添加用户</el-button>
           </div>
           <el-table :data="users" stripe>
-            <el-table-column prop="username" label="用户名" width="120" />
-            <el-table-column prop="email" label="邮箱" min-width="180" />
-            <el-table-column label="状态" width="90">
-              <template #default="{ row }"><el-tag size="small" :type="row.is_active?'success':'info'">{{ row.is_active?'活跃':'禁用' }}</el-tag></template>
-            </el-table-column>
-            <el-table-column label="操作" width="160" fixed="right">
+            <el-table-column prop="username" label="用户名" width="110" />
+            <el-table-column prop="real_name" label="姓名" width="80" />
+            <el-table-column prop="email" label="邮箱" min-width="160" />
+            <el-table-column label="状态" width="100">
               <template #default="{ row }">
+                <el-tag v-if="row.status === 'active'" size="small" type="success">已激活</el-tag>
+                <el-tag v-else-if="row.status === 'pending'" size="small" type="warning">待审核</el-tag>
+                <el-tag v-else-if="row.status === 'rejected'" size="small" type="danger">已拒绝</el-tag>
+                <el-tag v-else size="small" type="info">{{ row.status }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="角色" width="80">
+              <template #default="{ row }"><el-tag size="small" :type="row.role==='admin'?'':'info'">{{ row.role==='admin'?'管理员':'用户' }}</el-tag></template>
+            </el-table-column>
+            <el-table-column label="操作" width="200" fixed="right">
+              <template #default="{ row }">
+                <template v-if="row.status === 'pending'">
+                  <el-button link type="success" size="small" @click="approveUser(row)">通过</el-button>
+                  <el-popconfirm title="确定拒绝该注册？" @confirm="rejectUser(row)">
+                    <template #reference><el-button link type="danger" size="small">拒绝</el-button></template>
+                  </el-popconfirm>
+                </template>
                 <el-button link type="primary" size="small" @click="openUserDialog(row)">编辑</el-button>
                 <el-popconfirm title="确定删除此用户？" @confirm="deleteUser(row)">
                   <template #reference><el-button link type="danger" size="small">删除</el-button></template>
@@ -364,6 +379,22 @@ async function deleteUser(row) {
   await apiDelete(`/api/users/${row.id}`)
   ElMessage.success('已删除')
   await loadUsers()
+}
+
+async function approveUser(row) {
+  try {
+    await apiPost(`/api/users/${row.id}/approve`)
+    ElMessage.success(`${row.username} 已审批通过`)
+    await loadUsers()
+  } catch (e) { ElMessage.error('操作失败') }
+}
+
+async function rejectUser(row) {
+  try {
+    await apiPost(`/api/users/${row.id}/reject`)
+    ElMessage.success(`${row.username} 已拒绝`)
+    await loadUsers()
+  } catch (e) { ElMessage.error('操作失败') }
 }
 
 async function loadUsers() {

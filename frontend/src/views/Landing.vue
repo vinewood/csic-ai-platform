@@ -46,12 +46,39 @@
                 登 录
               </el-button>
             </el-form-item>
+            <el-form-item>
+              <el-button type="success" class="login-btn register-btn" @click="registerVisible = true">
+                注 册
+              </el-button>
+            </el-form-item>
           </el-form>
 
-          <p class="login-tip">首次使用请联系管理员开通账号</p>
+          <p class="login-tip">首次使用请点击「注册」申请账号</p>
         </div>
       </div>
     </div>
+
+    <!-- 注册对话框 -->
+    <el-dialog v-model="registerVisible" title="用户注册" width="500px" destroy-on-close :close-on-click-modal="false">
+      <el-form :model="regForm" label-width="80px" status-icon>
+        <el-form-item label="用户名" required>
+          <el-input v-model="regForm.username" placeholder="4-20位字母/数字/下划线" maxlength="20" />
+        </el-form-item>
+        <el-form-item label="密码" required>
+          <el-input v-model="regForm.password" type="password" placeholder="至少8位，含字母和数字" show-password />
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="regForm.email" placeholder="your@email.com" />
+        </el-form-item>
+        <el-form-item label="真实姓名">
+          <el-input v-model="regForm.real_name" placeholder="请输入真实姓名" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="registerVisible = false">取消</el-button>
+        <el-button type="success" :loading="regLoading" @click="doRegister">提交注册</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -62,9 +89,39 @@ import { User, Lock, UserFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
-const form = reactive({ username: 'admin', password: '***REMOVED-PASSWORD***' })
+const form = reactive({ username: '', password: '' })
 const loading = ref(false)
 const leftPanel = ref(null)
+
+// Register
+const registerVisible = ref(false)
+const regLoading = ref(false)
+const regForm = reactive({ username: '', password: '', email: '', real_name: '' })
+
+async function doRegister() {
+  if (!regForm.username || !regForm.password) { ElMessage.warning('用户名和密码不能为空'); return }
+  if (regForm.username.length < 3) { ElMessage.warning('用户名至少3个字符'); return }
+  if (regForm.password.length < 8) { ElMessage.warning('密码至少8位'); return }
+  regLoading.value = true
+  try {
+    const API = window.location.port === '5173' ? 'http://localhost:8000' : ''
+    const resp = await fetch(`${API}/api/auth/register`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(regForm)
+    })
+    const data = await resp.json()
+    if (resp.ok) {
+      ElMessage.success('注册成功！请等待管理员审核后登录')
+      registerVisible.value = false
+      regForm.username = ''; regForm.password = ''; regForm.email = ''; regForm.real_name = ''
+    } else {
+      ElMessage.error(data.detail || '注册失败')
+    }
+  } catch (e) {
+    ElMessage.error('网络错误')
+  }
+  regLoading.value = false
+}
 
 async function login() {
   if (!form.username || !form.password) { ElMessage.warning('请输入用户名和密码'); return }
@@ -78,7 +135,10 @@ async function login() {
     if (resp.ok) {
       const data = await resp.json()
       localStorage.setItem('csic_token', data.access_token)
-      localStorage.setItem('csic_user', JSON.stringify({ name: data.username }))
+      localStorage.setItem('csic_user', JSON.stringify({
+        name: data.username, role: data.role || 'user',
+        email: data.email || '', real_name: data.real_name || ''
+      }))
       router.push('/workspace/teaching')
     } else {
       // 后端不可用时回退本地登录

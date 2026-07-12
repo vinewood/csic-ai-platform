@@ -14,18 +14,30 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     username: str
+    role: str = "user"
+    email: str = ""
+    real_name: str = ""
 
 class UserOut(BaseModel):
     id: int
     username: str
-    email: str
-    is_active: bool
+    email: str = ""
+    real_name: str = ""
+    is_active: bool = False
+    status: str = "pending"
+    role: str = "user"
     created_at: Optional[datetime] = None
 
 class UserCreate(BaseModel):
     username: str
-    email: str = ""
     password: str = "***REMOVED-PASSWORD***"
+    email: str = ""
+    real_name: str = ""
+
+class UserUpdateProfile(BaseModel):
+    email: Optional[str] = None
+    password: Optional[str] = None
+    real_name: Optional[str] = None
 
 # ---- 对话 ----
 class ChatRequest(BaseModel):

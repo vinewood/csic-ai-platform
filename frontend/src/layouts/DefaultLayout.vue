@@ -22,7 +22,7 @@
             </span>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item>个人设置</el-dropdown-item>
+                <el-dropdown-item @click="profileVisible = true">个人设置</el-dropdown-item>
                 <el-dropdown-item divided @click="logout">退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -33,7 +33,7 @@
       <!-- Tab navigation, inside header -->
       <div class="bar-inner tabs-inner">
         <div
-          v-for="tab in tabs"
+          v-for="tab in visibleTabs"
           :key="tab.path"
           :class="['vben-tab', { active: isActive(tab) }]"
           @click="$router.push(tab.fullPath)"
@@ -52,22 +52,49 @@
         <router-view />
       </div>
     </main>
+
+    <!-- 个人设置对话框 -->
+    <el-dialog v-model="profileVisible" title="个人设置" width="500px" destroy-on-close>
+      <el-form :model="profileForm" label-width="80px">
+        <el-form-item label="用户名">
+          <el-input :model-value="userName" disabled />
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="profileForm.email" placeholder="your@email.com" />
+        </el-form-item>
+        <el-form-item label="真实姓名">
+          <el-input v-model="profileForm.real_name" placeholder="请输入真实姓名" />
+        </el-form-item>
+        <el-form-item label="新密码">
+          <el-input v-model="profileForm.password" type="password" placeholder="留空不修改密码" show-password />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="profileVisible = false">取消</el-button>
+        <el-button type="primary" :loading="profileLoading" @click="saveProfile">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowDown, UserFilled } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { apiPut } from '../api.js'
 
 const route = useRoute()
 const router = useRouter()
 const headerEl = ref(null)
 
-const userName = computed(() => {
-  try { return JSON.parse(localStorage.getItem('csic_user') || '{}').name || '管理员' }
-  catch { return '管理员' }
+const userInfo = computed(() => {
+  try { return JSON.parse(localStorage.getItem('csic_user') || '{}') }
+  catch { return {} }
 })
+
+const userName = computed(() => userInfo.value.name || '管理员')
+const userRole = computed(() => userInfo.value.role || 'user')
 
 const tabs = computed(() => {
   const parent = route.matched.find(r => r.path === '/workspace')
@@ -76,8 +103,46 @@ const tabs = computed(() => {
     .map(child => ({ ...child, fullPath: '/workspace/' + child.path }))
 })
 
+// 非管理员隐藏系统管理tab
+const visibleTabs = computed(() => {
+  if (userRole.value === 'admin') return tabs.value
+  return tabs.value.filter(t => t.meta?.title !== '系统管理')
+})
+
 function isActive(tab) { return route.path === tab.fullPath }
-function logout() { localStorage.removeItem('csic_user'); router.push('/') }
+function logout() { localStorage.removeItem('csic_token'); localStorage.removeItem('csic_user'); router.push('/') }
+
+// 个人设置
+const profileVisible = ref(false)
+const profileLoading = ref(false)
+const profileForm = reactive({ email: '', real_name: '', password: '' })
+
+onMounted(() => {
+  const u = userInfo.value
+  profileForm.email = u.email || ''
+  profileForm.real_name = u.real_name || ''
+})
+
+async function saveProfile() {
+  profileLoading.value = true
+  try {
+    const body = {}
+    if (profileForm.email) body.email = profileForm.email
+    if (profileForm.password) body.password = profileForm.password
+    if (profileForm.real_name) body.real_name = profileForm.real_name
+    await apiPut('/api/auth/me/profile', body)
+    ElMessage.success('个人信息已更新')
+    profileVisible.value = false
+    // 更新缓存
+    const u = userInfo.value
+    if (profileForm.email) u.email = profileForm.email
+    if (profileForm.real_name) u.real_name = profileForm.real_name
+    localStorage.setItem('csic_user', JSON.stringify(u))
+  } catch (e) {
+    ElMessage.error(e.message || '更新失败')
+  }
+  profileLoading.value = false
+}
 
 onMounted(() => {
   const s = document.createElement('script')

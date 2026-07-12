@@ -13,7 +13,9 @@ class User(Base):
     username = Column(String(64), unique=True, index=True, nullable=False)
     email = Column(String(128), unique=True, index=True)
     hashed_password = Column(String(256), nullable=False)
-    is_active = Column(Boolean, default=True)
+    real_name = Column(String(128), default="")
+    is_active = Column(Boolean, default=False)
+    status = Column(String(32), default="pending")  # pending/active/rejected
     role = Column(String(32), default="user")
     created_at = Column(DateTime, server_default=func.now())
     conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
