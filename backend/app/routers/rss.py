@@ -101,3 +101,110 @@ async def list_articles(
         }
         for a in articles
     ]
+
+
+@router.post("/generate-daily")
+async def generate_daily_digest(db: AsyncSession = Depends(get_db)):
+    """生成今日资讯 — 先抓取RSS → DeepSeek优化 → 返回结果"""
+    import httpx, json
+    from datetime import date
+    from ..config import get_api_config
+
+    today = date.today().isoformat()
+
+    # 1. 先触发 RSS 抓取
+    result = await db.execute(select(RssSource).where(RssSource.active == True))
+    sources = result.scalars().all()
+    fetch_count = 0
+    for src in sources:
+        articles = await fetch_rss(src.url)
+        for art in articles[:10]:
+            existing = await db.execute(
+                select(NewsArticle).where(NewsArticle.url == art.get("link", ""))
+            )
+            if existing.scalar_one_or_none():
+                continue
+            article = NewsArticle(
+                source_id=src.id,
+                title=art.get("title", ""),
+                url=art.get("link", ""),
+                summary=art.get("summary", ""),
+                category=src.category,
+            )
+            db.add(article)
+            fetch_count += 1
+    await db.commit()
+
+    # 2. 获取今天的文章
+    result = await db.execute(
+        select(NewsArticle).order_by(NewsArticle.created_at.desc()).limit(30)
+    )
+    articles = result.scalars().all()
+
+    if not articles:
+        return {"message": "今日暂无新资讯", "count": 0, "digest": ""}
+
+    # 3. 构建文章列表
+    article_text = "\n".join(
+        f"- [{a.category or '综合'}] {a.title}（{a.summary[:100] if a.summary else '无摘要'}）"
+        for a in articles[:20]
+    )
+
+    # 4. DeepSeek 优化生成日报
+    prompt = f"""你是专业资讯编辑。请根据以下今日文章列表，生成一份结构化的每日资讯简报：
+
+今日文章（共{len(articles)}篇）：
+{article_text}
+
+请按以下格式输出：
+# 📰 今日资讯简报（{today}）
+
+## 🔥 热点关注
+（3-5条最重要的资讯，每条包含标题和50字摘要）
+
+## 📂 分类速览
+按类别整理，每类列出2-3条要点
+
+## 📊 数据概览
+今日共收录{len(articles)}篇，覆盖{len(set(a.category for a in articles))}个领域
+
+## 💡 编辑推荐
+重点推荐2-3篇必读文章并说明理由
+
+请用专业新闻语言，简洁有力。"""
+
+    key = get_api_config("deepseek")
+    if not key:
+        return {"message": "请先配置DeepSeek API Key", "count": len(articles)}
+
+    try:
+        async with httpx.AsyncClient(timeout=60) as c:
+            resp = await c.post(
+                "https://api.deepseek.com/chat/completions",
+                headers={"Authorization": f"Bearer {key}"},
+                json={
+                    "model": "deepseek-chat",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.7, "max_tokens": 2000,
+                }
+            )
+            if resp.status_code == 200:
+                digest = resp.json()["choices"][0]["message"]["content"]
+
+                # 保存日报到数据库
+                for a in articles[:20]:
+                    if not a.ai_summary:
+                        a.ai_summary = digest.split(f"[{a.category or '综合'}]")[-1][:200] if f"[{a.category or '综合'}]" in digest else a.summary
+
+                await db.commit()
+                return {
+                    "message": f"今日资讯已生成，共 {len(articles)} 篇，新增抓取 {fetch_count} 篇",
+                    "count": len(articles),
+                    "fetch_count": fetch_count,
+                    "digest": digest,
+                    "date": today,
+                }
+    except Exception as e:
+        pass
+
+    return {"message": "AI生成失败，请稍后重试", "count": len(articles)}

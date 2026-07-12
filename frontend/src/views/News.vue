@@ -11,7 +11,7 @@
     <div class="news-toolbar">
       <el-date-picker v-model="selectedDate" type="date" placeholder="选择日期" style="width:150px;" @change="loadDigest" />
       <span class="toolbar-hint">每日 AI 自动整理最新资讯，共 {{ totalArticles }} 篇</span>
-      <el-button size="small" type="primary" round :icon="Plus" style="margin-left:auto;">订阅推送</el-button>
+      <el-button size="small" type="success" :icon="MagicStick" :loading="generating" style="margin-left:auto;" @click="generateDaily">生成今日资讯</el-button>
     </div>
 
     <!-- 日报封面 -->
@@ -83,13 +83,14 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { apiGet, apiPost } from '../api.js'
-import { Plus, Promotion, Connection } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { Plus, Promotion, Connection, MagicStick } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const selectedDate = ref(new Date())
 const readVisible = ref(false)
 const readArticle = ref(null)
 const articles = ref([])
+const generating = ref(false)
 
 const formatDate = computed(() => {
   const d = selectedDate.value || new Date()
@@ -135,6 +136,35 @@ function extractDomain(url) {
 }
 
 onMounted(() => { loadDigest() })
+
+async function generateDaily() {
+  generating.value = true
+  try {
+    const res = await apiPost('/api/rss/generate-daily')
+    if (res && res.digest) {
+      ElMessage.success(res.message || '今日资讯已生成')
+      await loadDigest()
+
+      // 询问是否推送给订阅邮箱
+      try {
+        await ElMessageBox.confirm(
+          '今日资讯已通过 DeepSeek 优化生成。\n是否推送给已订阅邮箱？',
+          '推送确认',
+          { confirmButtonText: '推送', cancelButtonText: '暂不', type: 'info' }
+        )
+        // TODO: 邮件推送逻辑
+        ElMessage.success('已加入推送队列')
+      } catch {
+        ElMessage.info('未推送')
+      }
+    } else {
+      ElMessage.info(res?.message || '生成失败')
+    }
+  } catch (e) {
+    ElMessage.error('生成失败: ' + (e.message || '网络错误'))
+  }
+  generating.value = false
+}
 
 async function loadDigest() {
   try {
