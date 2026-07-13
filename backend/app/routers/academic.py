@@ -5,6 +5,9 @@ from ..auth import get_current_user
 from ..services.academic_search import (
     aminer_search_scholar, aminer_search_paper, aminer_paper_detail, aminer_qa_search,
     openalex_search_works, openalex_search_authors,
+    crossref_search, crossref_lookup_doi,
+    moodle_get_courses, moodle_get_users,
+    khan_search_topics,
 )
 
 router = APIRouter(prefix="/api/academic", tags=["学术搜索"])
@@ -47,3 +50,34 @@ async def search_openalex_works(query: str = Query(default=""), page: int = 1, y
 @router.get("/openalex/authors")
 async def search_openalex_authors(query: str, page: int = 1, current_user=Depends(get_current_user)):
     return await openalex_search_authors(query=query, page=page)
+
+
+# ======== Crossref (免费，无需Key) ========
+
+@router.get("/crossref/search")
+async def search_crossref(query: str, rows: int = 10, offset: int = 0, current_user=Depends(get_current_user)):
+    return await crossref_search(query=query, rows=rows, offset=offset)
+
+
+@router.get("/crossref/doi/{doi}")
+async def lookup_crossref_doi(doi: str, current_user=Depends(get_current_user)):
+    return await crossref_lookup_doi(doi)
+
+
+# ======== Moodle LMS ========
+
+@router.get("/moodle/courses")
+async def get_moodle_courses(current_user=Depends(get_current_user)):
+    return await moodle_get_courses()
+
+
+@router.get("/moodle/users")
+async def get_moodle_users(current_user=Depends(get_current_user)):
+    return await moodle_get_users()
+
+
+# ======== Khan Academy ========
+
+@router.get("/khan/topics")
+async def get_khan_topics(query: str = "", current_user=Depends(get_current_user)):
+    return await khan_search_topics(query=query)

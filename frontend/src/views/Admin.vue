@@ -193,6 +193,22 @@
                       <el-Button size="small" @click="window.open('https://openalex.org')">注册获取API Key</el-Button>
                     </el-form-item>
                   </template>
+                  <template v-else-if="selectedApi === 'crossref'">
+                    <h4 class="api-form-title">Crossref 学术元数据</h4>
+                    <el-alert title="7500万DOI·免费无Key·出版商/引用网络" type="success" :closable="false" show-icon style="margin-bottom:16px;" />
+                    <el-form-item label="状态"><el-tag type="success">即开即用·无需配置</el-tag></el-form-item>
+                  </template>
+                  <template v-else-if="selectedApi === 'moodle'">
+                    <h4 class="api-form-title">Moodle 培训管理</h4>
+                    <el-alert title="开源LMS·课程/作业/成绩管理" type="warning" :closable="false" show-icon style="margin-bottom:16px;" />
+                    <el-form-item label="Moodle地址"><el-input v-model="apiConfig.moodle.url" placeholder="https://moodle.example.com" /></el-form-item>
+                    <el-form-item label="API Token"><el-input v-model="apiConfig.moodle.token" type="password" show-password /></el-form-item>
+                  </template>
+                  <template v-else-if="selectedApi === 'khan'">
+                    <h4 class="api-form-title">Khan Academy 课程</h4>
+                    <el-alert title="全球最大免费教育平台·无Key即用" type="success" :closable="false" show-icon style="margin-bottom:16px;" />
+                    <el-form-item label="状态"><el-tag type="success">即开即用·无需配置</el-tag></el-form-item>
+                  </template>
                   <template v-else-if="selectedApi === 'vip'">
                     <h4 class="api-form-title">维普开放平台</h4>
                     <el-alert title="需企业签约" type="warning" :closable="false" show-icon style="margin-bottom:16px;" />
@@ -566,6 +582,9 @@ const apiServices = [
   { key: 'doubao', label: '豆包 (火山引擎)', desc: '低延迟部署' },
   { key: 'aminer', label: 'AMiner 学术', desc: '学者/论文/专利检索' },
   { key: 'openalex', label: 'OpenAlex', desc: '5亿篇免费学术图谱' },
+  { key: 'crossref', label: 'Crossref', desc: '7500万DOI元数据·免费' },
+  { key: 'moodle', label: 'Moodle LMS', desc: '开源培训管理系统' },
+  { key: 'khan', label: 'Khan Academy', desc: '全球免费课程平台' },
   { key: 'vip', label: '维普开放平台', desc: '文献/引文分析' },
   { key: 'asr', label: '音视频转录', desc: 'ASR 语音识别' },
 ]
@@ -579,6 +598,9 @@ const defaultConfig = () => ({
   doubao: { key: '', endpoint: 'https://ark.cn-beijing.volces.com/api/v3' },
   aminer: { key: '', baseUrl: 'https://datacenter.aminer.cn/gateway/open_platform/api' },
   openalex: { key: '', baseUrl: 'https://api.openalex.org' },
+  crossref: { key: '', baseUrl: 'https://api.crossref.org' },
+  moodle: { url: '', token: '' },
+  khan: { key: '' },
   vip: { key: '', endpoint: 'https://openapi.cqvip.com' },
   asr: { mode: 'aliyun', aliyunKey: '', aliyunSecret: '', whisperUrl: 'http://localhost:9000', whisperModel: 'medium' },
 })
@@ -588,7 +610,8 @@ const apiConfig = reactive(defaultConfig())
 const frontToBack = {
   dashscope: 'qwen', deepseek: 'deepseek', zhipu: 'zhipu',
   moonshot: 'kimi', minimax: 'minimax', doubao: 'doubao',
-  aminer: 'aminer', openalex: 'openalex', vip: 'vip', asr: 'asr',
+  aminer: 'aminer', openalex: 'openalex', crossref: 'crossref',
+  moodle: 'moodle', khan: 'khan', vip: 'vip', asr: 'asr',
 }
 
 async function loadApiConfigs() {

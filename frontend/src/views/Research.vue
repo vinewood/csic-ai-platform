@@ -227,6 +227,7 @@ async function doWrite(){ const ep=writeTask.value==='paper'?'/api/research/gene
 const searchQuery=ref(''),searchSource=ref('openalex'),searchFilter=ref(''),searchResult=ref(''),searchResults=ref([]),searchLoading=ref(false)
 const searchSources = [
   { key:'openalex', label:'OpenAlex', free:true },
+  { key:'crossref', label:'Crossref', free:true },
   { key:'aminer', label:'AMiner', free:false },
   { key:'synthesis', label:'AI综合', free:false },
 ]
@@ -250,6 +251,12 @@ async function doSearch(){
       const res = await apiGet(`/api/academic/aminer/paper?keyword=${encodeURIComponent(searchQuery.value)}`)
       searchResults.value = (res?.results||[]).map(r=>({
         ...r, authors: [r.author||''], year: r.year||''
+      }))
+    } else if (searchSource.value === 'crossref') {
+      const res = await apiGet(`/api/academic/crossref/search?query=${encodeURIComponent(searchQuery.value)}`)
+      searchResults.value = (res?.results||[]).map(r=>({
+        ...r, authors: r.author ? [r.author] : [], year: r.year||'',
+        title: r.title||'',
       }))
     } else {
       // DeepSeek综合：保持原有SSE流式输出

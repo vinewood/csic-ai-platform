@@ -206,3 +206,162 @@ def _invert_abstract(inverted: dict) -> str:
                 words[p] = word
         return " ".join(words)[:500]
     except: return ""
+
+
+# ==================== Crossref API (免费，无需Key，7500万+ DOI) ====================
+
+CROSSREF_BASE = "https://api.crossref.org"
+
+
+async def crossref_search(query: str, rows: int = 10, offset: int = 0) -> dict:
+    """搜索 Crossref 论文元数据"""
+    async with httpx.AsyncClient(timeout=20) as c:
+        r = await c.get(
+            f"{CROSSREF_BASE}/works",
+            params={"query": query, "rows": rows, "offset": offset, "sort": "relevance"}
+        )
+        if r.status_code == 200:
+            data = r.json()
+            items = data.get("message", {}).get("items", [])
+            return {
+                "results": [{
+                    "doi": i.get("DOI", ""),
+                    "title": (i.get("title") or [""])[0],
+                    "author": ", ".join(
+                        f"{a.get('given','')} {a.get('family','')}".strip()
+                        for a in (i.get("author") or [])[:3]
+                    ),
+                    "year": (i.get("published-print") or i.get("created") or {}).get("date-parts", [[0]])[0][0],
+                    "publisher": i.get("publisher", ""),
+                    "type": i.get("type", ""),
+                    "cited_by": i.get("is-referenced-by-count", 0),
+                    "url": i.get("URL", f"https://doi.org/{i.get('DOI','')}"),
+                } for i in items],
+                "total": data.get("message", {}).get("total-results", 0),
+            }
+    return {"results": [], "error": "Crossref 请求失败"}
+
+
+async def crossref_lookup_doi(doi: str) -> dict:
+    """通过 DOI 获取论文完整信息"""
+    async with httpx.AsyncClient(timeout=20) as c:
+        r = await c.get(f"{CROSSREF_BASE}/works/{doi}")
+        if r.status_code == 200:
+            i = r.json().get("message", {})
+            return {
+                "doi": i.get("DOI", ""),
+                "title": (i.get("title") or [""])[0],
+                "abstract": i.get("abstract", ""),
+                "author": ", ".join(
+                    f"{a.get('given','')} {a.get('family','')}".strip()
+                    for a in (i.get("author") or [])[:10]
+                ),
+                "year": (i.get("published-print") or i.get("created") or {}).get("date-parts", [[0]])[0][0],
+                "publisher": i.get("publisher", ""),
+                "journal": ", ".join(i.get("container-title") or []),
+                "cited_by": i.get("is-referenced-by-count", 0),
+                "references_count": i.get("references-count", 0),
+                "type": i.get("type", ""),
+                "url": i.get("URL", f"https://doi.org/{i.get('DOI','')}"),
+            }
+    return {"error": "DOI 查询失败"}
+
+
+# ==================== Moodle LMS API ====================
+
+def _get_moodle_config() -> tuple:
+    """获取 Moodle 配置 (url, token)"""
+    import sqlite3, json
+    try:
+        conn = sqlite3.connect("/www/wwwroot/csic.thinkalike.com.cn/data/csic.db")
+        row = conn.execute("SELECT config_json FROM api_configs WHERE provider='moodle'").fetchone()
+        conn.close()
+        if row:
+            cfg = json.loads(row[0])
+            return cfg.get("url", ""), cfg.get("token", "")
+    except: pass
+    return "", ""
+
+
+async def moodle_get_courses() -> dict:
+    """获取 Moodle 课程列表"""
+    url, token = _get_moodle_config()
+    if not url or not token:
+        return {"error": "请在系统设置中配置 Moodle 地址和 API Token"}
+    
+    async with httpx.AsyncClient(timeout=20) as c:
+        r = await c.get(
+            f"{url}/webservice/rest/server.php",
+            params={
+                "wstoken": token, "wsfunction": "core_course_get_courses",
+                "moodlewsrestformat": "json"
+            }
+        )
+        if r.status_code == 200:
+            data = r.json()
+            if isinstance(data, list):
+                return {"courses": [{
+                    "id": c.get("id"), "fullname": c.get("fullname", ""),
+                    "shortname": c.get("shortname", ""),
+                    "summary": (c.get("summary") or "")[:200],
+                    "enrolled_count": c.get("enrolledusercount", 0),
+                    "category": c.get("categoryname", ""),
+                } for c in data], "total": len(data)}
+    return {"error": str(r.status_code) if r.status_code else "连接失败"}
+
+
+async def moodle_get_users() -> dict:
+    """获取 Moodle 用户列表"""
+    url, token = _get_moodle_config()
+    if not url or not token: return {"error": "请配置 Moodle"}
+    async with httpx.AsyncClient(timeout=20) as c:
+        r = await c.get(
+            f"{url}/webservice/rest/server.php",
+            params={
+                "wstoken": token,
+                "wsfunction": "core_enrol_get_enrolled_users",
+                "moodlewsrestformat": "json"
+            }
+        )
+        if r.status_code == 200:
+            data = r.json()
+            if isinstance(data, list):
+                return {"users": [{"id": u.get("id"), "fullname": u.get("fullname", ""),
+                    "email": u.get("email", "")} for u in data[:50]], "total": len(data)}
+    return {"error": "获取失败"}
+
+
+# ==================== Khan Academy API ====================
+
+KHAN_BASE = "https://www.khanacademy.org/api/v1"
+
+
+async def khan_search_topics(query: str = "") -> dict:
+    """搜索 Khan Academy 课程主题"""
+    async with httpx.AsyncClient(timeout=20) as c:
+        if query:
+            r = await c.get(f"{KHAN_BASE}/topictree")
+            data = r.json()
+            # Filter matching topics
+            matches = []
+            def search_node(node):
+                if query.lower() in node.get("translated_title", "").lower():
+                    matches.append(node)
+                for child in node.get("children", []):
+                    search_node(child)
+            search_node(data)
+            return {"topics": [{
+                "id": m.get("id"), "title": m.get("translated_title", ""),
+                "kind": m.get("kind", ""),
+                "children_count": len(m.get("children", []))
+            } for m in matches[:20]], "total": len(matches)}
+        else:
+            r = await c.get(f"{KHAN_BASE}/topictree")
+            data = r.json()
+            def top_level(node):
+                return [{
+                    "id": n.get("id"), "title": n.get("translated_title", ""),
+                    "kind": n.get("kind", ""),
+                    "children_count": len(n.get("children", []))
+                } for n in node.get("children", [])[:12]]
+            return {"topics": top_level(data), "total": len(top_level(data))}
