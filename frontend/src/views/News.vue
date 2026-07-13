@@ -30,22 +30,29 @@
         </div>
       </aside>
 
-      <!-- 信息流 -->
+      <!-- 瀑布流 -->
       <main class="news-main">
         <div v-if="!filteredArticles.length" class="empty-state">
           <el-icon :size="48" color="#e5e7eb"><Document /></el-icon>
           <p>暂无资讯，点击「生成」获取今日资讯</p>
         </div>
 
-        <div v-for="item in filteredArticles" :key="item.id" class="feed-item" @click="openArticle(item)">
-          <div class="feed-meta">
-            <span class="feed-src">{{ item.source }}</span>
-            <span class="feed-time">{{ item.time }}</span>
-            <span class="feed-cat" :style="{background: item.gradient}">{{ item.category || '综合' }}</span>
-            <el-tag v-if="item.summary" size="small" type="success" effect="plain" style="margin-left:auto;font-size:10px">AI摘要</el-tag>
+        <div class="masonry" v-else>
+          <div v-for="item in filteredArticles" :key="item.id" class="masonry-card" @click="openArticle(item)"
+            :class="{ 'tall': item.summary && item.summary.length > 80 }">
+            <div class="card-img" :style="{background: item.gradient}">
+              <span class="card-cat">{{ item.category || '综合' }}</span>
+              <span v-if="item.summary" class="card-ai">AI</span>
+            </div>
+            <div class="card-info">
+              <div class="card-meta">
+                <span class="card-src">{{ item.source }}</span>
+                <span class="card-time">{{ item.time }}</span>
+              </div>
+              <h4 class="card-title">{{ item.title }}</h4>
+              <p v-if="item.summary" class="card-desc">{{ item.summary.slice(0, 120) }}</p>
+            </div>
           </div>
-          <h4 class="feed-title">{{ item.title }}</h4>
-          <div v-if="item.summary" class="feed-summary" v-html="cleanHtml(item.summary)"></div>
         </div>
       </main>
     </div>
@@ -202,25 +209,32 @@ function openUrl(url) { if (url) window.open(url) }
 .cat-name { flex: 1; font-size: 13px; color: #374151; }
 .cat-num { font-size: 11px; color: #94a3b8; }
 
-.news-main { flex: 1; padding: 16px 20px; min-width: 0; max-width: 800px; }
+.news-main { flex: 1; padding: 16px 20px; min-width: 0; }
 
-/* 信息流 */
-.feed-item {
-  background: #fff; border: 1px solid #eee; border-radius: 10px;
-  padding: 16px 20px; margin-bottom: 10px; cursor: pointer;
-  transition: all 0.15s;
+/* 瀑布流 */
+.masonry { column-count: 3; column-gap: 14px; }
+.masonry-card {
+  break-inside: avoid; background: #fff; border-radius: 12px;
+  overflow: hidden; cursor: pointer; margin-bottom: 14px;
+  border: 1px solid #eee; transition: all 0.2s;
 }
-.feed-item:hover { border-color: #bae0ff; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
-.feed-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
-.feed-src { font-size: 12px; color: #1677ff; font-weight: 500; }
-.feed-time { font-size: 11px; color: #94a3b8; }
-.feed-cat { font-size: 10px; color: #fff; padding: 1px 8px; border-radius: 10px; }
-.feed-title { margin: 0 0 4px; font-size: 15px; font-weight: 600; color: #1a1a2e; line-height: 1.5; }
-.feed-summary {
-  font-size: 13px; color: #4b5563; line-height: 1.7;
-  padding: 8px 12px; background: #f9fafb; border-radius: 6px; margin-top: 6px;
+.masonry-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.08); }
+.card-img {
+  height: 90px; display: flex; align-items: flex-end; justify-content: space-between;
+  padding: 10px 12px;
 }
-.feed-summary :deep(p) { margin: 0; }
+.masonry-card.tall .card-img { height: 110px; }
+.card-cat { background: rgba(255,255,255,0.9); color: #1a1a2e; font-size: 11px; font-weight:600; padding: 2px 8px; border-radius: 12px; }
+.card-ai { background: #10b981; color: #fff; font-size: 10px; padding: 2px 8px; border-radius: 12px; }
+.card-info { padding: 12px 14px; }
+.card-meta { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+.card-src { font-size: 11px; color: #1677ff; font-weight:500; }
+.card-time { font-size: 10px; color: #94a3b8; }
+.card-title { margin: 0 0 4px; font-size: 14px; font-weight:600; color: #1a1a2e; line-height:1.5; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.card-desc { font-size: 12px; color: #6b7280; line-height:1.6; margin:0; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+
+@media (max-width: 900px) { .masonry { column-count: 2; } }
+@media (max-width: 600px) { .masonry { column-count: 1; } }
 .empty-state { text-align: center; padding: 80px 0; color: #bbb; }
 .empty-state p { margin-top: 8px; font-size: 14px; }
 
