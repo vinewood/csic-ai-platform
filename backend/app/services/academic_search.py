@@ -17,8 +17,17 @@ def _get_aminer_token() -> Optional[str]:
         conn.close()
         if row:
             cfg = json.loads(row[0])
-            return cfg.get("key", "")
+            return cfg.get("key", "") or ""
     except: pass
+    return ""
+
+
+def _get_aminer_auth() -> str:
+    """获取 AMiner Authorization header 值"""
+    token = _get_aminer_token()
+    if token:
+        return f"Bearer {token}"
+    # 免费接口无需认证，直接返回空字符串
     return ""
 
 
@@ -39,21 +48,16 @@ def _get_openalex_email() -> str:
 # ==================== AMiner API ====================
 
 async def aminer_search_scholar(name: str = "", org: str = "", size: int = 10) -> dict:
-    """搜索学者"""
-    token = _get_aminer_token()
-    if not token:
-        return {"error": "请先在系统设置中配置 AMiner API Key"}
+    """搜索学者（免费接口）"""
+    auth = _get_aminer_auth()
+    headers = {"Authorization": auth} if auth else {}
 
     async with httpx.AsyncClient(timeout=20) as c:
         body = {"name": name, "size": size}
         if org: body["org"] = org
         if not name and not org: return {"results": [], "note": "请至少输入姓名或机构"}
 
-        r = await c.post(
-            f"{AMINER_BASE}/person/search",
-            headers={"Authorization": f"Bearer {token}"},
-            json=body
-        )
+        r = await c.post(f"{AMINER_BASE}/person/search", headers=headers, json=body)
         if r.status_code == 200:
             data = r.json()
             return {
@@ -70,10 +74,9 @@ async def aminer_search_scholar(name: str = "", org: str = "", size: int = 10) -
 
 
 async def aminer_search_paper(title: str = "", keyword: str = "", author: str = "", page: int = 0, size: int = 10) -> dict:
-    """搜索论文"""
-    token = _get_aminer_token()
-    if not token:
-        return {"error": "请先在系统设置中配置 AMiner API Key"}
+    """搜索论文（免费接口）"""
+    auth = _get_aminer_auth()
+    headers = {"Authorization": auth} if auth else {}
 
     async with httpx.AsyncClient(timeout=20) as c:
         params = {"page": page, "size": size}
@@ -81,11 +84,7 @@ async def aminer_search_paper(title: str = "", keyword: str = "", author: str = 
         if keyword: params["keyword"] = keyword
         if author: params["author"] = author
 
-        r = await c.get(
-            f"{AMINER_BASE}/paper/search/pro",
-            headers={"Authorization": f"Bearer {token}"},
-            params=params
-        )
+        r = await c.get(f"{AMINER_BASE}/paper/search/pro", headers=headers, params=params)
         if r.status_code == 200:
             data = r.json()
             return {

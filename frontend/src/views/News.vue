@@ -38,19 +38,16 @@
         </div>
 
         <div class="masonry" v-else>
-          <div v-for="item in filteredArticles" :key="item.id" class="masonry-card" @click="openArticle(item)"
-            :class="{ 'tall': item.summary && item.summary.length > 80 }">
-            <div class="card-img" :style="{background: item.gradient}">
-              <span class="card-cat">{{ item.category || '综合' }}</span>
-              <span v-if="item.summary" class="card-ai">AI</span>
-            </div>
+          <div v-for="item in filteredArticles" :key="item.id" class="masonry-card" @click="openArticle(item)">
             <div class="card-info">
               <div class="card-meta">
                 <span class="card-src">{{ item.source }}</span>
                 <span class="card-time">{{ item.time }}</span>
+                <span class="card-cat" :style="{background: item.gradient}">{{ item.category || '综合' }}</span>
+                <span v-if="item.summary" class="card-ai">AI</span>
               </div>
-              <h4 class="card-title">{{ item.title }}</h4>
-              <p v-if="item.summary" class="card-desc">{{ item.summary.slice(0, 120) }}</p>
+              <h4 class="card-title">{{ cleanHtml(item.title) }}</h4>
+              <p v-if="item.summary" class="card-desc">{{ cleanHtml(item.summary).slice(0, 120) }}</p>
             </div>
           </div>
         </div>
@@ -142,10 +139,17 @@ function extractDomain(url) { try { return new URL(url).hostname.replace(/^www\.
 
 function cleanHtml(text) {
   if (!text) return ''
-  let t = text.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<\/div>/gi, '\n')
-  t = t.replace(/<[^>]+>/g, '').replace(/&[a-z]+;/g, ' ').replace(/&amp;/g, '&')
-  t = t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#?\w+;/g, ' ')
-  t = t.replace(/\s+/g, ' ').replace(/\n+/g, '\n').trim()
+  let t = String(text)
+  // Replace break tags and paragraph closings with newlines
+  t = t.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<\/div>/gi, '\n')
+  // Remove ALL remaining HTML tags
+  t = t.replace(/<[^>]*>/g, '')
+  // Decode HTML entities
+  t = t.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+  t = t.replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+  t = t.replace(/&nbsp;/g, ' ').replace(/&#?\w+;/g, ' ')
+  // Collapse whitespace
+  t = t.replace(/\s+/g, ' ').replace(/\n\s*\n/g, '\n').trim()
   return t
 }
 
@@ -214,24 +218,19 @@ function openUrl(url) { if (url) window.open(url) }
 /* 瀑布流 */
 .masonry { column-count: 3; column-gap: 14px; }
 .masonry-card {
-  break-inside: avoid; background: #fff; border-radius: 12px;
-  overflow: hidden; cursor: pointer; margin-bottom: 14px;
+  break-inside: avoid; background: #fff; border-radius: 10px;
+  overflow: hidden; cursor: pointer; margin-bottom: 12px;
   border: 1px solid #eee; transition: all 0.2s;
 }
-.masonry-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.08); }
-.card-img {
-  height: 90px; display: flex; align-items: flex-end; justify-content: space-between;
-  padding: 10px 12px;
-}
-.masonry-card.tall .card-img { height: 110px; }
-.card-cat { background: rgba(255,255,255,0.9); color: #1a1a2e; font-size: 11px; font-weight:600; padding: 2px 8px; border-radius: 12px; }
-.card-ai { background: #10b981; color: #fff; font-size: 10px; padding: 2px 8px; border-radius: 12px; }
-.card-info { padding: 12px 14px; }
-.card-meta { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+.masonry-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.06); }
+.card-info { padding: 14px 16px; }
+.card-meta { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
 .card-src { font-size: 11px; color: #1677ff; font-weight:500; }
 .card-time { font-size: 10px; color: #94a3b8; }
-.card-title { margin: 0 0 4px; font-size: 14px; font-weight:600; color: #1a1a2e; line-height:1.5; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-.card-desc { font-size: 12px; color: #6b7280; line-height:1.6; margin:0; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.card-cat { font-size: 10px; color: #fff; padding: 1px 8px; border-radius: 10px; }
+.card-ai { background: #10b981; color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 10px; }
+.card-title { margin: 0 0 4px; font-size: 14px; font-weight:600; color: #1a1a2e; line-height:1.5; word-break:break-word; }
+.card-desc { font-size: 12px; color: #6b7280; line-height:1.6; margin:0; word-break:break-word; }
 
 @media (max-width: 900px) { .masonry { column-count: 2; } }
 @media (max-width: 600px) { .masonry { column-count: 1; } }
