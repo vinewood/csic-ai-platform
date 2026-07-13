@@ -232,10 +232,19 @@ function openUrl(url) { if (url) window.open(url) }
 .card-title { margin: 0 0 4px; font-size: 14px; font-weight:600; color: #1a1a2e; line-height:1.5; word-break:break-word; }
 .card-desc { font-size: 12px; color: #6b7280; line-height:1.6; margin:0; word-break:break-word; }
 
-@media (max-width: 900px) { .masonry { column-count: 2; } }
-@media (max-width: 600px) { .masonry { column-count: 1; } }
 .empty-state { text-align: center; padding: 80px 0; color: #bbb; }
 .empty-state p { margin-top: 8px; font-size: 14px; }
+
+@media (max-width: 900px) { .masonry { column-count: 2; } }
+@media (max-width: 600px) {
+  .masonry { column-count: 1; }
+  .news-sidebar { display: none; }
+  .news-main { padding: 10px; }
+  .news-topbar { flex-wrap: wrap; gap: 6px; padding: 8px 10px; }
+  .topbar-right { width: 100%; flex-wrap: wrap; }
+  .topbar-right .el-input { flex: 1; min-width: 0; }
+  .topbar-right .el-button { flex-shrink: 0; }
+}
 
 .drawer-content { padding: 0 4px; }
 .drawer-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }

@@ -1,0 +1,58 @@
+/* ========== 全局响应式适配 ========== */
+
+/* 平板端 (767-900px) */
+@media (max-width: 900px) {
+  /* 系统管理 - 表格横向滚动 */
+  .admin-tabs .el-table { overflow-x: auto; display: block; }
+  .admin-tabs .el-table__header, .admin-tabs .el-table__body { min-width: 800px; }
+  
+  /* 科研工作台 - 面板堆叠 */
+  .panel-split { flex-direction: column !important; }
+  .panel-left, .panel-right { width: 100% !important; flex: none !important; }
+  .panel-left { border-right: none !important; border-bottom: 1px solid #e5e7eb; }
+  
+  /* 知识库 - 表格适配 */
+  .el-table { font-size: 12px; }
+}
+
+/* 手机端 (≤600px) */
+@media (max-width: 600px) {
+  /* 系统管理 - 用户表格 */
+  .el-table { font-size: 11px; }
+  .el-table .el-button--small { padding: 4px 8px; font-size: 11px; }
+  .section-toolbar { flex-wrap: wrap; gap: 6px; }
+  
+  /* 科研工作台 */
+  .r-tabs { flex-wrap: wrap; gap: 4px; }
+  .r-tab { padding: 4px 10px; font-size: 12px; }
+  .full-chat { flex-direction: column !important; }
+  .chat-side { width: 100% !important; border-right: none !important; border-bottom: 1px solid #eee; padding: 8px 0; }
+  .chat-main { width: 100% !important; }
+  
+  /* 对话框全屏 */
+  .el-dialog { width: 95% !important; max-width: 95vw !important; }
+  .el-drawer { width: 80% !important; }
+  
+  /* Hero 区域缩小 */
+  .csic-hero { height: 120px !important; padding: 16px !important; }
+  .csic-hero h2 { font-size: 18px !important; }
+  .csic-hero p { font-size: 11px !important; }
+  
+  /* API 配置面板 */
+  .api-split { flex-direction: column !important; }
+  .api-split > div:first-child { width: 100% !important; border-right: none !important; border-bottom: 1px solid #eee; }
+  .api-split > div:last-child { width: 100% !important; }
+
+  /* Dify 集成卡片 */
+  .el-col-8 { max-width: 100% !important; flex: 0 0 100% !important; }
+  
+  /* 投稿选刊 */
+  .el-input, .el-select, .el-textarea { font-size: 13px !important; }
+}
+
+/* 超小屏 (≤400px) */
+@media (max-width: 400px) {
+  .csic-hero { height: 100px !important; }
+  .csic-hero h2 { font-size: 16px !important; }
+  .news-topbar .topbar-right .el-button { padding: 5px 10px; font-size: 11px; }
+}

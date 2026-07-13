@@ -1,1 +1,0 @@
-import{R as e,d as t,m as n,t as r}from"./_plugin-vue_export-helper-DefT6_p-.js";var i={class:`dify-embed-page`},a=`/dify/datasets`,o=r({__name:`Knowledge`,setup(r){return(r,o)=>(e(),n(`div`,i,[t(`iframe`,{src:a,class:`dify-frame`,frameborder:`0`,allow:`clipboard-read; clipboard-write`})]))}},[[`__scopeId`,`data-v-3bc9992a`]]);export{o as default};
