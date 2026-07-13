@@ -85,9 +85,12 @@ async def list_articles(
     date: str = "",
     db: AsyncSession = Depends(get_db),
 ):
+    from sqlalchemy import func, cast, Date
     query = select(NewsArticle).order_by(NewsArticle.created_at.desc())
     if category:
         query = query.where(NewsArticle.category == category)
+    if date:
+        query = query.where(func.date(NewsArticle.created_at) == date)
     result = await db.execute(query.limit(100))
     articles = result.scalars().all()
     return [
@@ -98,6 +101,7 @@ async def list_articles(
             "summary": a.ai_summary or a.summary,
             "category": a.category,
             "time": a.published.strftime("%H:%M") if a.published else "",
+            "date": str(a.created_at)[:10] if a.created_at else "",
         }
         for a in articles
     ]

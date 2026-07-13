@@ -4,10 +4,12 @@
     <div class="news-topbar">
       <div class="topbar-left">
         <h2 class="page-logo">📰 每日资讯</h2>
-        <span class="page-sub">AI 智能聚合引擎 · {{ formatDate }}</span>
+        <span class="page-sub">{{ formatDate }}</span>
       </div>
       <div class="topbar-right">
-        <el-input v-model="searchText" placeholder="搜索..." size="small" style="width:180px" clearable :prefix-icon="Search" />
+        <el-date-picker v-model="selectedDate" type="date" placeholder="选择日期" size="small" style="width:140px" @change="loadDigest" format="YYYY/MM/DD" value-format="YYYY-MM-DD" />
+        <el-button size="small" @click="goToday">今天</el-button>
+        <el-input v-model="searchText" placeholder="搜索..." size="small" style="width:150px" clearable :prefix-icon="Search" />
         <el-button type="success" size="small" :icon="MagicStick" :loading="generating" @click="generateDaily">生成</el-button>
       </div>
     </div>
@@ -105,7 +107,8 @@ const gradients = [
 ]
 
 const formatDate = computed(() => {
-  const d = selectedDate.value || new Date()
+  const d = selectedDate.value
+  if (typeof d === 'string') return d
   const w = ['日','一','二','三','四','五','六']
   return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} 周${w[d.getDay()]}`
 })
@@ -155,6 +158,11 @@ function cleanHtml(text) {
 
 onMounted(() => loadDigest())
 
+function goToday() {
+  selectedDate.value = new Date()
+  loadDigest()
+}
+
 async function generateDaily() {
   generating.value = true
   try {
@@ -176,7 +184,10 @@ async function generateDaily() {
 async function loadDigest() {
   try {
     const params = {}
-    if (selectedDate.value) params.date = selectedDate.value.toISOString().split('T')[0]
+    if (selectedDate.value) {
+      const d = selectedDate.value
+      params.date = typeof d === 'string' ? d : d.toISOString().split('T')[0]
+    }
     const res = await apiGet('/api/rss/articles', { params })
     articles.value = Array.isArray(res?.articles) ? res.articles : (Array.isArray(res) ? res : [])
   } catch { articles.value = [] }
