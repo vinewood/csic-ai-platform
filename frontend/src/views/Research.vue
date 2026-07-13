@@ -100,13 +100,12 @@
         <div class="panel-split">
           <div class="panel-left">
             <div class="panel-title">🔍 多源学术搜索</div>
-            <!-- 搜索源 Tab -->
+            <!-- 搜索源切换 -->
             <div class="search-source-tabs">
               <div v-for="s in searchSources" :key="s.key"
                 :class="['search-source-tab',{active:searchSource===s.key}]"
                 @click="searchSource=s.key;searchResult='';searchResults=[]">
                 {{ s.label }}
-                <el-tag size="small" :type="s.free?'success':'warning'" effect="light" style="margin-left:4px;font-size:10px">{{ s.free?'免费':'付费' }}</el-tag>
               </div>
             </div>
             <el-input v-model="searchQuery" placeholder="输入搜索关键词..." size="small" @keydown.enter="doSearch" />
@@ -121,7 +120,7 @@
             <div class="result-box" ref="searchBody">
               <div v-if="!searchResult && !searchLoading && !searchResults.length" class="empty">
                 输入关键词开始检索<br>
-                <span style="font-size:11px;color:#bbb">{{ searchSource==='aminer'?'AMiner(学者/论文)':'OpenAlex(5亿篇)' }}</span>
+                <span style="font-size:11px;color:#bbb">{{ searchSource==='aminer'?'AMiner(学者/论文)':searchSource==='synthesis'?'AI综合分析':'OpenAlex(5亿篇)' }}</span>
               </div>
               <div v-else-if="searchResults.length" class="search-result-list">
                 <div v-for="r in searchResults" :key="r.id||r.title" class="search-result-item" @click="openResultDetail(r)">
@@ -228,7 +227,7 @@ const searchQuery=ref(''),searchSource=ref('openalex'),searchFilter=ref(''),sear
 const searchSources = [
   { key:'openalex', label:'OpenAlex', free:true },
   { key:'aminer', label:'AMiner', free:false },
-  { key:'synthesis', label:'DeepSeek综合', free:false },
+  { key:'synthesis', label:'AI综合', free:false },
 ]
 
 async function doSearch(){
@@ -325,9 +324,9 @@ function render(t){ if(!t)return''; try{return marked.parse(t.replace(/\n{3,}/g,
 .empty{text-align:center;padding:40px 20px;color:#bbb;font-size:13px;line-height:1.8}
 /* 搜索源Tabs */
 .search-source-tabs{display:flex;gap:4px;margin-bottom:8px}
-.search-source-tab{padding:5px 10px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid #e5e7eb;background:#fff;transition:all .15s;display:flex;align-items:center}
+.search-source-tab{padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;border:1px solid #e5e7eb;background:#fff;transition:all .15s;white-space:nowrap}
 .search-source-tab:hover{border-color:#1677ff}
-.search-source-tab.active{background:#e6f0ff;border-color:#1677ff;color:#1677ff;font-weight:600}
+.search-source-tab.active{background:#1677ff;color:#fff;border-color:#1677ff;font-weight:600}
 /* 搜索结果列表 */
 .search-result-list{display:flex;flex-direction:column;gap:8px}
 .search-result-item{padding:12px 14px;background:#fff;border:1px solid #eee;border-radius:8px;cursor:pointer;transition:all .15s}
