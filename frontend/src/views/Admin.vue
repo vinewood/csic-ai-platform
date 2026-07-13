@@ -588,7 +588,7 @@ const apiConfig = reactive(defaultConfig())
 const frontToBack = {
   dashscope: 'qwen', deepseek: 'deepseek', zhipu: 'zhipu',
   moonshot: 'kimi', minimax: 'minimax', doubao: 'doubao',
-  aminer: 'aminer', vip: 'vip', asr: 'asr',
+  aminer: 'aminer', openalex: 'openalex', vip: 'vip', asr: 'asr',
 }
 
 async function loadApiConfigs() {
