@@ -179,14 +179,18 @@
                   </template>
                   <template v-else-if="selectedApi === 'aminer'">
                     <h4 class="api-form-title">AMiner 学术搜索</h4>
-                    <el-alert title="学者/论文/机构/专利检索" type="warning" :closable="false" show-icon style="margin-bottom:16px;" />
+                    <el-alert title="学者/论文/机构/专利检索 · free无限制" type="warning" :closable="false" show-icon style="margin-bottom:16px;" />
                     <el-form-item label="API Key"><el-input v-model="apiConfig.aminer.key" type="password" show-password placeholder="JWT Token" /></el-form-item>
-                    <el-form-item label="Base URL"><el-input v-model="apiConfig.aminer.baseUrl" placeholder="https://datacenter.aminer.cn/gateway/open_platform/api" /></el-form-item>
+                    <el-form-item label="获取 Token">
+                      <el-button size="small" @click="window.open('https://open.aminer.cn/open/board?tab=control')">AMiner控制台</el-button>
+                    </el-form-item>
+                  </template>
+                  <template v-else-if="selectedApi === 'openalex'">
+                    <h4 class="api-form-title">OpenAlex 学术图谱</h4>
+                    <el-alert title="5亿论文/9000万作者/CC0免费" type="success" :closable="false" show-icon style="margin-bottom:16px;" />
+                    <el-form-item label="联系邮箱"><el-input v-model="apiConfig.openalex.key" placeholder="your@email.com（提升API限额）" /></el-form-item>
                     <el-form-item>
-                      <el-button size="small" @click="testAminerApi" :loading="testing.aminer">测试连接</el-button>
-                      <span v-if="testResult.aminer !== null" :style="{color:testResult.aminer?'#10b981':'#ef4444',marginLeft:'10px',fontSize:'12px'}">
-                        {{ testResult.aminer ? '已连接' : '连接失败' }}
-                      </span>
+                      <el-Button size="small" @click="window.open('https://openalex.org')">注册获取API Key</el-Button>
                     </el-form-item>
                   </template>
                   <template v-else-if="selectedApi === 'vip'">
@@ -560,7 +564,8 @@ const apiServices = [
   { key: 'moonshot', label: 'Kimi (Moonshot)', desc: '超长上下文' },
   { key: 'minimax', label: 'MiniMax', desc: '创意写作' },
   { key: 'doubao', label: '豆包 (火山引擎)', desc: '低延迟部署' },
-  { key: 'aminer', label: 'AMiner 学术', desc: '学者/论文检索' },
+  { key: 'aminer', label: 'AMiner 学术', desc: '学者/论文/专利检索' },
+  { key: 'openalex', label: 'OpenAlex', desc: '5亿篇免费学术图谱' },
   { key: 'vip', label: '维普开放平台', desc: '文献/引文分析' },
   { key: 'asr', label: '音视频转录', desc: 'ASR 语音识别' },
 ]
@@ -573,6 +578,7 @@ const defaultConfig = () => ({
   minimax: { groupId: '', key: '' },
   doubao: { key: '', endpoint: 'https://ark.cn-beijing.volces.com/api/v3' },
   aminer: { key: '', baseUrl: 'https://datacenter.aminer.cn/gateway/open_platform/api' },
+  openalex: { key: '', baseUrl: 'https://api.openalex.org' },
   vip: { key: '', endpoint: 'https://openapi.cqvip.com' },
   asr: { mode: 'aliyun', aliyunKey: '', aliyunSecret: '', whisperUrl: 'http://localhost:9000', whisperModel: 'medium' },
 })

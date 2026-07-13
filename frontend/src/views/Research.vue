@@ -95,20 +95,50 @@
         </div>
       </div>
 
-      <!-- Tab 4: 文献检索 — AMiner + Arxiv 真实搜索 -->
+      <!-- Tab 4: 文献检索 — 多源学术搜索 -->
       <div v-if="tab==='search'" class="func-panel">
         <div class="panel-split">
           <div class="panel-left">
-            <div class="panel-title">🔍 AI增强学术搜索</div>
-            <el-alert title="搜索流程：AMiner学者 API → Arxiv论文 API → AI分析" type="success" :closable="false" show-icon style="margin-bottom:8px;font-size:11px" />
-            <el-input v-model="searchQuery" placeholder="输入搜索主题..." size="small" @keydown.enter="doSearch" />
-            <el-select v-model="searchType" size="small" style="width:100%;margin:6px 0">
-              <el-option label="综合搜索（AMiner+Arxiv+AI）" value="search" />
-              <el-option label="技术趋势分析" value="trend" />
+            <div class="panel-title">🔍 多源学术搜索</div>
+            <!-- 搜索源 Tab -->
+            <div class="search-source-tabs">
+              <div v-for="s in searchSources" :key="s.key"
+                :class="['search-source-tab',{active:searchSource===s.key}]"
+                @click="searchSource=s.key;searchResult='';searchResults=[]">
+                {{ s.label }}
+                <el-tag size="small" :type="s.free?'success':'warning'" effect="light" style="margin-left:4px;font-size:10px">{{ s.free?'免费':'付费' }}</el-tag>
+              </div>
+            </div>
+            <el-input v-model="searchQuery" placeholder="输入搜索关键词..." size="small" @keydown.enter="doSearch" />
+            <el-select v-if="searchSource==='openalex'" v-model="searchFilter" size="small" style="width:100%;margin:6px 0" placeholder="筛选">
+              <el-option label="全部论文" value="" />
+              <el-option label="仅开放获取" value="oa" />
+              <el-option label="2024-2026" value="recent" />
             </el-select>
-            <el-button type="primary" size="small" style="width:100%" @click="doSearch" :loading="searchLoading" :disabled="!searchQuery">开始检索</el-button>
+            <el-button type="primary" size="small" style="width:100%" @click="doSearch" :loading="searchLoading" :disabled="!searchQuery">检索</el-button>
           </div>
-          <div class="panel-right"><div class="result-box" ref="searchBody"><div v-if="!searchResult && !searchLoading" class="empty">输入主题开始检索<br>AMiner(学者) + Arxiv(论文) + AI分析</div><div v-else class="result-text" v-html="render(searchResult)"></div><div v-if="searchLoading" style="color:#bbb;padding:10px">检索中...</div></div></div>
+          <div class="panel-right">
+            <div class="result-box" ref="searchBody">
+              <div v-if="!searchResult && !searchLoading && !searchResults.length" class="empty">
+                输入关键词开始检索<br>
+                <span style="font-size:11px;color:#bbb">{{ searchSource==='aminer'?'AMiner(学者/论文)':'OpenAlex(5亿篇)' }}</span>
+              </div>
+              <div v-else-if="searchResults.length" class="search-result-list">
+                <div v-for="r in searchResults" :key="r.id||r.title" class="search-result-item" @click="openResultDetail(r)">
+                  <div class="sr-header">
+                    <span class="sr-source">{{ r.author||r.authors?.join(', ')|'未知' }}</span>
+                    <span v-if="r.year" class="sr-year">{{ r.year }}</span>
+                    <el-tag v-if="r.is_oa" size="small" type="success" effect="light">OA</el-tag>
+                    <el-tag v-if="r.cited_by" size="small" type="warning" effect="light">{{ r.cited_by }}引用</el-tag>
+                  </div>
+                  <div class="sr-title">{{ r.title }}</div>
+                  <div v-if="r.abstract" class="sr-abstract">{{ r.abstract?.slice(0,200) }}</div>
+                </div>
+              </div>
+              <div v-if="searchLoading" style="color:#bbb;padding:10px;text-align:center">检索中...</div>
+              <div v-if="searchResult && !searchResults.length" class="result-text" v-html="render(searchResult)"></div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -194,14 +224,47 @@ const writeTask=ref('topics'),writeInput=ref(''),writeResult=ref(''),writeLoadin
 async function doWrite(){ const ep=writeTask.value==='paper'?'/api/research/generate-paper':'/api/research/stream';writeResult.value='';writeLoading.value=true;const t=localStorage.getItem('csic_token');try{const r=await fetch(`${B}${ep}`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${t}`},body:JSON.stringify({query:writeInput.value,model:model.value,function:writeTask.value})});await sseRead(r,writeResult)}catch(e){writeResult.value=`[错误] ${e.message}`}finally{writeLoading.value=false}}
 
 // Tab 4: 文献检索 — 真实 AMiner+Arxiv+AI 三层检索
-const searchQuery=ref(''),searchType=ref('search'),searchResult=ref(''),searchLoading=ref(false)
+const searchQuery=ref(''),searchSource=ref('openalex'),searchFilter=ref(''),searchResult=ref(''),searchResults=ref([]),searchLoading=ref(false)
+const searchSources = [
+  { key:'openalex', label:'OpenAlex', free:true },
+  { key:'aminer', label:'AMiner', free:false },
+  { key:'synthesis', label:'DeepSeek综合', free:false },
+]
+
 async function doSearch(){
   if(!searchQuery.value.trim()||searchLoading.value) return
-  searchResult.value=''; searchLoading.value=true
-  const t=localStorage.getItem('csic_token'); const ep=searchType.value==='trend'?'/api/research/trend-analysis':'/api/research/search'
-  const fd=new FormData(); fd.append('query',searchQuery.value); fd.append('model',model.value)
-  try{ const r=await fetch(`${B}${ep}`,{method:'POST',headers:{Authorization:`Bearer ${t}`},body:fd}); await sseRead(r,searchResult) }
-  catch(e){ searchResult.value=`[错误] ${e.message}` } finally{ searchLoading.value=false }
+  searchResult.value=''; searchResults.value=[]; searchLoading.value=true
+  const token = localStorage.getItem('csic_token')
+
+  try {
+    if (searchSource.value === 'openalex') {
+      let ep = `/api/academic/openalex/works?query=${encodeURIComponent(searchQuery.value)}`
+      if (searchFilter.value==='oa') ep += '&oa_only=true'
+      if (searchFilter.value==='recent') ep += '&year_from=2024'
+      const res = await apiGet(ep)
+      searchResults.value = (res?.results||[]).map(r=>({
+        ...r,
+        author: r.authors?.slice(0,3).join(', '),
+      }))
+    } else if (searchSource.value === 'aminer') {
+      const res = await apiGet(`/api/academic/aminer/paper?keyword=${encodeURIComponent(searchQuery.value)}`)
+      searchResults.value = (res?.results||[]).map(r=>({
+        ...r, authors: [r.author||''], year: r.year||''
+      }))
+    } else {
+      // DeepSeek综合：保持原有SSE流式输出
+      const fd = new FormData(); fd.append('query',searchQuery.value); fd.append('model',model.value)
+      const r = await fetch(`${B}/api/research/search`,{method:'POST',headers:{Authorization:`Bearer ${token}`},body:fd})
+      await sseRead(r,searchResult)
+    }
+  } catch(e) { searchResult.value=`[错误] ${e.message}` }
+  searchLoading.value=false
+}
+
+function openResultDetail(item) {
+  if (item.doi) window.open(`https://doi.org/${item.doi}`)
+  else if (item.url) window.open(item.url)
+  else if (item.id) window.open(`https://openalex.org/works/${item.id}`)
 }
 
 // Tab 5: 投稿选刊 — 内置期刊库+AI推荐
@@ -259,7 +322,21 @@ function render(t){ if(!t)return''; try{return marked.parse(t.replace(/\n{3,}/g,
 .result-text :deep(p){margin:4px 0}.result-text :deep(ul),.result-text :deep(ol){margin:4px 0;padding-left:18px}
 .result-text :deep(pre){background:#1e293b;color:#e2e8f0;padding:6px 10px;border-radius:6px;overflow-x:auto;font-size:12px}
 .result-text :deep(code){background:#e5e7eb;padding:1px 3px;border-radius:3px;font-size:12px}
-.empty{text-align:center;padding:60px;color:#bbb}
+.empty{text-align:center;padding:40px 20px;color:#bbb;font-size:13px;line-height:1.8}
+/* 搜索源Tabs */
+.search-source-tabs{display:flex;gap:4px;margin-bottom:8px}
+.search-source-tab{padding:5px 10px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid #e5e7eb;background:#fff;transition:all .15s;display:flex;align-items:center}
+.search-source-tab:hover{border-color:#1677ff}
+.search-source-tab.active{background:#e6f0ff;border-color:#1677ff;color:#1677ff;font-weight:600}
+/* 搜索结果列表 */
+.search-result-list{display:flex;flex-direction:column;gap:8px}
+.search-result-item{padding:12px 14px;background:#fff;border:1px solid #eee;border-radius:8px;cursor:pointer;transition:all .15s}
+.search-result-item:hover{border-color:#bae0ff;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.sr-header{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.sr-source{font-size:12px;color:#1677ff;font-weight:500}
+.sr-year{font-size:11px;color:#94a3b8}
+.sr-title{font-size:13px;font-weight:600;color:#1a1a2e;margin-bottom:3px}
+.sr-abstract{font-size:12px;color:#6b7280;line-height:1.6}
 .write-task{display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:6px;cursor:pointer;font-size:12px;color:#374151;margin-bottom:3px}
 .write-task:hover{background:#e8ecf1}.write-task.active{background:#1677ff12;color:#1677ff;font-weight:600}
 @media(max-width:768px){.panel-split{flex-direction:column}.panel-left{width:100%;border-right:0;border-bottom:1px solid #e5e7eb}.chat-side,.chat-skill{display:none}}

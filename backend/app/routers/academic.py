@@ -1,65 +1,49 @@
-"""gpt_academic 集成路由 — 论文翻译/润色/综述/大纲 功能"""
+"""学术搜索路由 — AMiner + OpenAlex 统一接口"""
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
-from ..services.academic_service import AcademicEngine
+from fastapi import APIRouter, Depends, Query
 from ..auth import get_current_user
+from ..services.academic_search import (
+    aminer_search_scholar, aminer_search_paper, aminer_paper_detail, aminer_qa_search,
+    openalex_search_works, openalex_search_authors,
+)
 
-router = APIRouter(prefix="/api/academic", tags=["学术工具"])
-
-
-class TranslateRequest(BaseModel):
-    text: str
-    target_lang: str = "zh"
-
-
-class ReviewRequest(BaseModel):
-    topic: str
+router = APIRouter(prefix="/api/academic", tags=["学术搜索"])
 
 
-class PolishRequest(BaseModel):
-    text: str
+# ======== AMiner ========
+
+@router.get("/aminer/scholar")
+async def search_aminer_scholar(name: str = Query(default=""), org: str = Query(default=""), size: int = 10, current_user=Depends(get_current_user)):
+    return await aminer_search_scholar(name=name, org=org, size=size)
 
 
-class OutlineRequest(BaseModel):
-    topic: str
+@router.get("/aminer/paper")
+async def search_aminer_paper(title: str = Query(default=""), keyword: str = Query(default=""), author: str = Query(default=""), page: int = 0, size: int = 10, current_user=Depends(get_current_user)):
+    return await aminer_search_paper(title=title, keyword=keyword, author=author, page=page, size=size)
 
 
-@router.post("/translate")
-async def translate_paper(req: TranslateRequest, current_user: dict = Depends(get_current_user)):
-    """论文翻译 — gpt_academic 引擎"""
-    result = await AcademicEngine.translate_paper(req.text, req.target_lang)
-    return {"result": result}
+@router.get("/aminer/paper/{paper_id}")
+async def get_aminer_paper_detail(paper_id: str, current_user=Depends(get_current_user)):
+    return await aminer_paper_detail(paper_id)
 
 
-@router.post("/review")
-async def literature_review(req: ReviewRequest, current_user: dict = Depends(get_current_user)):
-    """文献综述 — gpt_academic 引擎"""
-    result = await AcademicEngine.literature_review(req.topic)
-    return {"result": result}
+@router.get("/aminer/qa")
+async def aminer_qa(query: str, size: int = 10, current_user=Depends(get_current_user)):
+    return await aminer_qa_search(query=query, size=size)
 
 
-@router.post("/polish")
-async def polish_writing(req: PolishRequest, current_user: dict = Depends(get_current_user)):
-    """论文润色 — gpt_academic 引擎"""
-    result = await AcademicEngine.polish_writing(req.text)
-    return {"result": result}
+# ======== OpenAlex ========
+
+@router.get("/openalex/works")
+async def search_openalex_works(query: str = Query(default=""), page: int = 1, year_from: str = Query(default=""), year_to: str = Query(default=""), oa_only: bool = False, current_user=Depends(get_current_user)):
+    filters = []
+    if year_from: filters.append(f"from_publication_date:{year_from}-01-01")
+    if year_to: filters.append(f"to_publication_date:{year_to}-12-31")
+    if oa_only: filters.append("is_oa:true")
+    filter_str = ",".join(filters) if filters else ""
+    return await openalex_search_works(query=query, filter_str=filter_str, page=page)
 
 
-@router.post("/outline")
-async def paper_outline(req: OutlineRequest, current_user: dict = Depends(get_current_user)):
-    """论文大纲 — gpt_academic 引擎"""
-    result = await AcademicEngine.paper_outline(req.topic)
-    return {"result": result}
-
-
-@router.get("/health")
-async def academic_health():
-    """gpt_academic 引擎健康检查"""
-    import os
-    exists = os.path.exists("/opt/gpt_academic/core_functional.py")
-    return {
-        "status": "connected" if exists else "not_installed",
-        "engine": "gpt_academic + DeepSeek",
-        "path": "/opt/gpt_academic" if exists else None
-    }
+@router.get("/openalex/authors")
+async def search_openalex_authors(query: str, page: int = 1, current_user=Depends(get_current_user)):
+    return await openalex_search_authors(query=query, page=page)
