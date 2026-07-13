@@ -146,10 +146,10 @@
               <div class="api-main">
                 <el-form label-width="140px" size="small">
                   <template v-if="selectedApi === 'dashscope'">
-                    <h4 class="api-form-title">阿里云百炼 (DashScope)</h4>
-                    <el-alert title="主要模型提供商，用于通义千问系列" type="info" :closable="false" show-icon style="margin-bottom:16px;" />
-                    <el-form-item label="API Key"><el-input v-model="apiConfig.dashscope.key" type="password" show-password placeholder="sk-xxx" /></el-form-item>
-                    <el-form-item label="Endpoint"><el-input v-model="apiConfig.dashscope.endpoint" placeholder="https://dashscope.aliyuncs.com/api/v1" /></el-form-item>
+                    <h4 class="api-form-title">百炼大模型 (Qwen Turbo/Plus/Max/Coder+)</h4>
+                    <el-alert title="已配置 · OpenAI兼容 · Qwen全系+智谱+Kimi+豆包" type="success" :closable="false" show-icon style="margin-bottom:16px;" />
+                    <el-form-item label="API Key"><el-input :model-value="'已配置（不展示）'" disabled /></el-form-item>
+                    <el-form-item label="兼容地址"><el-input :model-value="'maas.aliyuncs.com/compatible-mode/v1'" disabled /></el-form-item>
                   </template>
                   <template v-else-if="selectedApi === 'deepseek'">
                     <h4 class="api-form-title">DeepSeek</h4>

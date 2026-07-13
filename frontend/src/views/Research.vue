@@ -7,7 +7,7 @@
           <el-icon :size="16"><component :is="t.icon" /></el-icon>{{ t.label }}
         </div>
         <el-select v-if="tab==='chat'" v-model="model" size="small" style="width:110px;margin-left:auto">
-          <el-option v-for="m in models" :key="m" :label="m" :value="m" />
+          <el-option v-for="m in models" :key="m.value" :label="m.label" :value="m.value" />
         </el-select>
         <el-select v-if="tab==='chat'" v-model="kbId" size="small" style="width:140px;margin-left:4px" clearable placeholder="Dify知识库">
           <el-option v-for="kb in kbList" :key="kb.id" :label="kb.name" :value="kb.id"><span>{{ kb.name }}</span><span style="color:#bbb;font-size:10px;margin-left:6px">{{ kb.count }}篇</span></el-option>
@@ -167,7 +167,18 @@ import { Plus, UploadFilled, MoreFilled, EditPen, Download, Delete, MagicStick, 
 const iconMap = { ...Icons }
 
 const tabs = [{id:'chat',label:'学术对话',icon:TrendCharts},{id:'read',label:'论文阅读',icon:Reading},{id:'write',label:'学术写作',icon:EditPen},{id:'search',label:'文献检索',icon:Search},{id:'journal',label:'投稿选刊',icon:Promotion}]
-const tab = ref('chat'), model = ref('deepseek'), models = ['deepseek','qwen','zhipu','kimi','minimax','doubao']
+const tab = ref('chat'), model = ref('deepseek'), models = [
+  { label: 'DeepSeek', value: 'deepseek' },
+  { label: 'Qwen Turbo', value: 'qwen-turbo' },
+  { label: 'Qwen Plus', value: 'qwen-plus' },
+  { label: 'Qwen Max', value: 'qwen-max' },
+  { label: 'Qwen MaxLong', value: 'qwen-max-longcontext' },
+  { label: 'Qwen Coder+', value: 'qwen-coder-plus' },
+  { label: '智谱 GLM-4', value: 'zhipu' },
+  { label: 'Kimi MoonShot', value: 'kimi' },
+  { label: 'MiniMax', value: 'minimax' },
+  { label: '豆包 DouBao', value: 'doubao' },
+]
 const B = location.port==='5173'?'http://localhost:8000':''
 
 // Functions

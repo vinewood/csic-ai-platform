@@ -4,43 +4,28 @@ LLM API 直连服务 —— 替代 Dify
 """
 
 import json
+import os
 import httpx
 from typing import AsyncGenerator, Optional
 from ..config import get_api_config
 
 
-# 模型 API 配置模板
+# 模型 API 配置模板 — 除DeepSeek外全部走百炼 OpenAI 兼容
+BAILIAN_BASE = "https://ws-eg0sswldqhhc6qko.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+BAILIAN_KEY = "***REMOVED-BAILIAN-KEY***"
+
 MODEL_ENDPOINTS = {
-    "qwen": {
-        "url": "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation",
-        "model": "qwen-max",
-        "auth_type": "bearer",  # Authorization: Bearer sk-xxx
-    },
-    "deepseek": {
-        "url": "https://api.deepseek.com/chat/completions",
-        "model": "deepseek-chat",
-        "auth_type": "bearer",
-    },
-    "zhipu": {
-        "url": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
-        "model": "glm-4-flash",
-        "auth_type": "bearer",
-    },
-    "kimi": {
-        "url": "https://api.moonshot.cn/v1/chat/completions",
-        "model": "moonshot-v1-32k",
-        "auth_type": "bearer",
-    },
-    "minimax": {
-        "url": "https://api.minimax.chat/v1/text/chatcompletion_v2",
-        "model": "abab6.5s",
-        "auth_type": "bearer",
-    },
-    "doubao": {
-        "url": "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
-        "model": "doubao-pro-32k",
-        "auth_type": "bearer",
-    },
+    "qwen-turbo":     {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen-turbo", "auth_type": "bearer"},
+    "qwen-plus":      {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen-plus", "auth_type": "bearer"},
+    "qwen-max":       {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen-max", "auth_type": "bearer"},
+    "qwen-max-longcontext": {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen-max-longcontext", "auth_type": "bearer"},
+    "qwen-coder-plus":{"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen-coder-plus", "auth_type": "bearer"},
+    "qwen":           {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen-max", "auth_type": "bearer"},  # 兼容旧代码
+    "zhipu":          {"url": f"{BAILIAN_BASE}/chat/completions", "model": "glm-4-flash", "auth_type": "bearer"},
+    "kimi":           {"url": f"{BAILIAN_BASE}/chat/completions", "model": "moonshot-v1-32k", "auth_type": "bearer"},
+    "minimax":        {"url": f"{BAILIAN_BASE}/chat/completions", "model": "abab6.5s", "auth_type": "bearer"},
+    "doubao":         {"url": f"{BAILIAN_BASE}/chat/completions", "model": "doubao-pro-32k", "auth_type": "bearer"},
+    "deepseek":       {"url": "https://api.deepseek.com/chat/completions", "model": "deepseek-chat", "auth_type": "bearer"},
 }
 
 # 聊天历史记录（内存中，重启丢失——生产应换 Redis）
@@ -60,10 +45,15 @@ async def chat_stream(
 ) -> AsyncGenerator[str, None]:
     """直接调用 LLM API，SSE 流式返回"""
     endpoint = MODEL_ENDPOINTS.get(model, MODEL_ENDPOINTS["deepseek"])
-    api_key = get_api_config(model)
+    
+    # 百炼统一 Key，DeepSeek 用自己 Key
+    if model == "deepseek":
+        api_key = get_api_config("deepseek") or os.getenv("DEEPSEEK_API_KEY", "")
+    else:
+        api_key = BAILIAN_KEY
 
     if not api_key:
-        yield f"\n\n[请先配置 {model} 的 API Key：系统管理 → API 配置 → {model}]"
+        yield f"\n\n[请先配置 {model} 的 API Key]"
         return
 
     # 构造消息
@@ -75,32 +65,15 @@ async def chat_stream(
         "Content-Type": "application/json",
     }
 
-    # 各家模型请求体不同，分别构造
-    if model == "qwen":
-        payload = {
-            "model": endpoint["model"],
-            "input": {"messages": messages},
-            "parameters": {"temperature": temperature, "top_p": top_p, "max_tokens": max_tokens, "result_format": "message"},
-        }
-    elif model == "minimax":
-        payload = {
-            "model": endpoint["model"],
-            "messages": messages,
-            "temperature": temperature,
-            "top_p": top_p,
-            "tokens_to_generate": max_tokens,
-            "stream": True,
-        }
-    else:
-        # OpenAI 兼容格式（DeepSeek/智谱/Kimi/豆包）
-        payload = {
-            "model": endpoint["model"],
-            "messages": messages,
-            "temperature": temperature,
-            "top_p": top_p,
-            "max_tokens": max_tokens,
-            "stream": True,
-        }
+    # 全部走 OpenAI 兼容格式（百炼支持）
+    payload = {
+        "model": endpoint["model"],
+        "messages": messages,
+        "temperature": temperature,
+        "top_p": top_p,
+        "max_tokens": max_tokens,
+        "stream": True,
+    }
 
     async with httpx.AsyncClient(timeout=120.0) as client:
         try:
