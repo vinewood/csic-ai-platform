@@ -28,7 +28,7 @@
           <div style="height:1px;background:#e5e7eb;margin:6px 0"></div>
           <el-button type="primary" :icon="Plus" size="small" class="new-btn" @click="newConv">新建对话</el-button>
           <div class="hist-list">
-            <div v-for="c in convs" :key="c.id" class="hist-item" :class="{active:c.id===convId}" @click="loadConv(c)">
+            <div v-for="c in convs" :key="c.id" class="hist-item" :class="{active:c.id===convId}" :title="c.title||'对话'" @click="loadConv(c)">
               <span class="hist-title">{{ c.title||'对话' }}</span>
               <el-dropdown trigger="click" @command="(cmd)=>histAction(cmd,c)"><el-button link size="small" class="hist-more" @click.stop><el-icon><MoreFilled /></el-icon></el-button>
                 <template #dropdown><el-dropdown-menu>
