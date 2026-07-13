@@ -10,24 +10,25 @@ from typing import AsyncGenerator, Optional
 from ..config import get_api_config
 
 
-# 模型 API 配置模板 — 除DeepSeek外全部走百炼 OpenAI 兼容
+# 模型 API 配置模板 — 百炼 OpenAI 兼容统一路由
+# https://ws-eg0sswldqhhc6qko.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
 BAILIAN_BASE = "https://ws-eg0sswldqhhc6qko.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
 BAILIAN_KEY = "***REMOVED-BAILIAN-KEY***"
 
 MODEL_ENDPOINTS = {
-    # 千问 3.7 系列
-    "qwen-plus":      {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen3.7-plus", "auth_type": "bearer"},
-    "qwen-max":       {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen3.7-max", "auth_type": "bearer"},
-    "qwen-turbo":     {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen3.6-flash", "auth_type": "bearer"},
-    "qwen-coder-plus": {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen3.7-plus", "auth_type": "bearer"},
-    "qwen":           {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen3.7-plus", "auth_type": "bearer"},
-    # DeepSeek V4 系列（也走百炼）
-    "deepseek":       {"url": f"{BAILIAN_BASE}/chat/completions", "model": "deepseek-v4-pro", "auth_type": "bearer"},
-    # 第三方顶级模型
-    "glm-4":          {"url": f"{BAILIAN_BASE}/chat/completions", "model": "glm-5.2", "auth_type": "bearer"},
-    "zhipu":          {"url": f"{BAILIAN_BASE}/chat/completions", "model": "glm-5.2", "auth_type": "bearer"},
-    "kimi":           {"url": f"{BAILIAN_BASE}/chat/completions", "model": "kimi-k2.7-code", "auth_type": "bearer"},
-    "minimax":        {"url": f"{BAILIAN_BASE}/chat/completions", "model": "MiniMax-M2.5", "auth_type": "bearer"},
+    # 千问 3.7 — 百炼
+    "qwen-plus":      {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen3.7-plus", "route": "bailian"},
+    "qwen-max":       {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen3.7-max", "route": "bailian"},
+    "qwen-turbo":     {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen3.6-flash", "route": "bailian"},
+    "qwen-coder-plus":{"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen3.7-plus", "route": "bailian"},
+    "qwen":           {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen3.7-plus", "route": "bailian"},
+    # 第三方 — 百炼
+    "glm-4":          {"url": f"{BAILIAN_BASE}/chat/completions", "model": "glm-5.2", "route": "bailian"},
+    "zhipu":          {"url": f"{BAILIAN_BASE}/chat/completions", "model": "glm-5.2", "route": "bailian"},
+    "kimi":           {"url": f"{BAILIAN_BASE}/chat/completions", "model": "kimi-k2.7-code", "route": "bailian"},
+    "minimax":        {"url": f"{BAILIAN_BASE}/chat/completions", "model": "MiniMax-M2.5", "route": "bailian"},
+    # DeepSeek — 独立 API
+    "deepseek":       {"url": "https://api.deepseek.com/chat/completions", "model": "deepseek-chat", "route": "deepseek"},
 }
 
 # 聊天历史记录（内存中，重启丢失——生产应换 Redis）
@@ -48,15 +49,14 @@ async def chat_stream(
     """直接调用 LLM API，SSE 流式返回"""
     endpoint = MODEL_ENDPOINTS.get(model, MODEL_ENDPOINTS["deepseek"])
     
-    # 百炼统一 Key，DeepSeek 用自己 Key
-    if model == "deepseek":
+    # DeepSeek 独立 Key，其余走百炼统一 Key
+    if endpoint.get("route") == "deepseek":
         api_key = get_api_config("deepseek") or os.getenv("DEEPSEEK_API_KEY", "")
+        if not api_key:
+            yield f"\n\n[DeepSeek V4 Pro 需独立 API Key：系统管理 → API 配置 → DeepSeek]"
+            return
     else:
         api_key = BAILIAN_KEY
-
-    if not api_key:
-        yield f"\n\n[请先配置 {model} 的 API Key]"
-        return
 
     # 构造消息
     history = chat_histories.get(conversation_id or user_id, [])
@@ -67,7 +67,7 @@ async def chat_stream(
         "Content-Type": "application/json",
     }
 
-    # 全部走 OpenAI 兼容格式（百炼支持）
+    # OpenAI 兼容格式
     payload = {
         "model": endpoint["model"],
         "messages": messages,
