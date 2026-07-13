@@ -168,16 +168,14 @@ const iconMap = { ...Icons }
 
 const tabs = [{id:'chat',label:'学术对话',icon:TrendCharts},{id:'read',label:'论文阅读',icon:Reading},{id:'write',label:'学术写作',icon:EditPen},{id:'search',label:'文献检索',icon:Search},{id:'journal',label:'投稿选刊',icon:Promotion}]
 const tab = ref('chat'), model = ref('deepseek'), models = [
-  { label: 'DeepSeek', value: 'deepseek' },
+  { label: 'DeepSeek V3', value: 'deepseek' },
+  { label: 'Qwen3.6 Plus (默认)', value: 'qwen-plus' },
+  { label: 'Qwen3 Max', value: 'qwen-max' },
   { label: 'Qwen Turbo', value: 'qwen-turbo' },
-  { label: 'Qwen Plus', value: 'qwen-plus' },
-  { label: 'Qwen Max', value: 'qwen-max' },
-  { label: 'Qwen MaxLong', value: 'qwen-max-longcontext' },
-  { label: 'Qwen Coder+', value: 'qwen-coder-plus' },
-  { label: '智谱 GLM-4', value: 'zhipu' },
-  { label: 'Kimi MoonShot', value: 'kimi' },
-  { label: 'MiniMax', value: 'minimax' },
-  { label: '豆包 DouBao', value: 'doubao' },
+  { label: 'Qwen3 Coder+', value: 'qwen-coder-plus' },
+  { label: 'GLM-5.1', value: 'glm-4' },
+  { label: 'Kimi K2.5', value: 'kimi' },
+  { label: 'MiniMax M2.5', value: 'minimax' },
 ]
 const B = location.port==='5173'?'http://localhost:8000':''
 
