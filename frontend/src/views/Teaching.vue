@@ -221,7 +221,7 @@ async function doSend() {
     try {
       const resp = await fetch(`${API_BASE}/api/chat/dify-chat`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ query: t, model: model.value, skill_id: skillId.value || '' })
+        body: JSON.stringify({ query: t, model: model.value, skill_id: skillId.value || '', conversation_id: convId.value })
       })
       const reader = resp.body.getReader(); const dec = new TextDecoder()
       while (true) {
@@ -246,7 +246,7 @@ async function doSend() {
       try {
         const resp = await fetch(`${API_BASE}/api/chat/dify-chat`, {
           method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ query: t, model: m, skill_id: skillId.value || '' })
+          body: JSON.stringify({ query: t, model: m, skill_id: skillId.value || '', conversation_id: convId.value })
         })
         const reader = resp.body.getReader(); const dec = new TextDecoder()
         while (true) {
