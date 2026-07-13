@@ -14,7 +14,7 @@
       <div class="panel-divider"></div>
       <div class="panel-title">历史对话</div>
       <div class="hist-list">
-        <div v-for="c in convs" :key="c.id" class="hist-item" :class="{active:c.id===convId}" @click="loadConv(c)">
+        <div v-for="c in convs" :key="c.id" class="hist-item" :class="{active:c.id===convId}" :title="c.title||'对话'" @click="loadConv(c)">
           <span class="hist-title">{{ c.title || '对话' }}</span>
           <el-dropdown trigger="click" @command="(cmd)=>histAction(cmd,c)">
             <el-button link size="small" class="hist-btn" @click.stop><el-icon><MoreFilled /></el-icon></el-button>
