@@ -43,12 +43,12 @@
         </el-radio-group>
         <template v-if="mode==='single'">
           <el-select v-model="model" size="small" style="width:110px">
-            <el-option v-for="m in models" :key="m" :label="m" :value="m" />
+            <el-option v-for="m in models" :key="m.value" :label="m.label" :value="m.value" />
           </el-select>
         </template>
         <template v-else>
           <el-select v-model="multiModels" size="small" style="width:200px" multiple collapse-tags>
-            <el-option v-for="m in models" :key="m" :label="m" :value="m" />
+            <el-option v-for="m in models" :key="m.value" :label="m.label" :value="m.value" />
           </el-select>
         </template>
         <el-select v-model="kbId" size="small" style="width:140px;margin-left:4px" clearable placeholder="知识库">
@@ -139,10 +139,17 @@ const quickBtns = [
   { id: 'q3', label: '干部能力提升课程方案', prompt: '请为中青年干部能力提升设计课程方案' },
 ]
 
-const input = ref(''), mode = ref('single'), model = ref('deepseek'), multiModels = ref(['deepseek','qwen'])
+const input = ref(''), mode = ref('single'), model = ref('deepseek'), multiModels = ref(['deepseek','qwen-plus'])
 const thinking = ref(false), msgs = ref([]), skillId = ref(''), funcId = ref(''), kbId = ref(''), kbList = ref([])
 const skills = ref([]), convs = ref([]), convId = ref('new')
-const models = ['deepseek','qwen','zhipu','kimi','minimax','doubao']
+const models = [
+  { label: 'DeepSeek V4 Pro', value: 'deepseek' },
+  { label: 'Qwen3.7 Plus', value: 'qwen-plus' },
+  { label: 'Qwen3.7 Max', value: 'qwen-max' },
+  { label: 'GLM-5.2', value: 'glm-4' },
+  { label: 'Kimi K2.7 Code', value: 'kimi' },
+  { label: 'MiniMax M2.5', value: 'minimax' },
+]
 const bodyRef = ref(null)
 
 onMounted(async () => {
