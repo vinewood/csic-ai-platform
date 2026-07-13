@@ -99,16 +99,13 @@
       <div v-if="tab==='search'" class="func-panel">
         <div class="panel-split">
           <div class="panel-left">
-            <div class="panel-title">🔍 多源学术搜索</div>
-            <!-- 搜索源切换 -->
-            <div class="search-source-tabs">
-              <div v-for="s in searchSources" :key="s.key"
-                :class="['search-source-tab',{active:searchSource===s.key}]"
-                @click="searchSource=s.key;searchResult='';searchResults=[]">
-                <span class="src-label">{{ s.label }}</span>
-                <span class="src-tag" :class="s.free?'free':'paid'">{{ s.free?'免费':'付费' }}</span>
-              </div>
-            </div>
+            <div class="panel-title"><el-icon :size="16"><Search /></el-icon> 多源学术搜索</div>
+            <el-select v-model="searchSource" size="small" style="width:100%;margin-bottom:8px" @change="searchResult='';searchResults=[]">
+              <el-option v-for="s in searchSources" :key="s.key" :label="s.label" :value="s.key">
+                <span>{{ s.label }}</span>
+                <el-tag size="small" :type="s.free?'success':'warning'" effect="light" style="margin-left:6px">{{ s.free?'免费':'付费' }}</el-tag>
+              </el-option>
+            </el-select>
             <el-input v-model="searchQuery" placeholder="输入搜索关键词..." size="small" @keydown.enter="doSearch" />
             <el-select v-if="searchSource==='openalex'" v-model="searchFilter" size="small" style="width:100%;margin:6px 0" placeholder="筛选">
               <el-option label="全部论文" value="" />
@@ -330,16 +327,6 @@ function render(t){ if(!t)return''; try{return marked.parse(t.replace(/\n{3,}/g,
 .result-text :deep(pre){background:#1e293b;color:#e2e8f0;padding:6px 10px;border-radius:6px;overflow-x:auto;font-size:12px}
 .result-text :deep(code){background:#e5e7eb;padding:1px 3px;border-radius:3px;font-size:12px}
 .empty{text-align:center;padding:40px 20px;color:#bbb;font-size:13px;line-height:1.8}
-/* 搜索源Tabs */
-.search-source-tabs{display:flex;gap:6px;margin-bottom:8px}
-.search-source-tab{display:flex;flex-direction:column;align-items:center;padding:6px 12px;border-radius:8px;font-size:12px;cursor:pointer;border:2px solid #e5e7eb;background:#fff;transition:all .15s;min-width:60px}
-.search-source-tab:hover{border-color:#1677ff}
-.search-source-tab.active{border-color:#1677ff;background:#e6f0ff}
-.src-label{font-weight:600;color:#374151;line-height:1.3}
-.search-source-tab.active .src-label{color:#1677ff}
-.src-tag{font-size:10px;padding:1px 6px;border-radius:10px;margin-top:3px;line-height:1.4;font-weight:500}
-.src-tag.free{background:#ecfdf5;color:#065f46}
-.src-tag.paid{background:#fef3c7;color:#92400e}
 /* 搜索结果列表 */
 .search-result-list{display:flex;flex-direction:column;gap:8px}
 .search-result-item{padding:12px 14px;background:#fff;border:1px solid #eee;border-radius:8px;cursor:pointer;transition:all .15s}
