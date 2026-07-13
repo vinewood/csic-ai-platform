@@ -15,20 +15,19 @@ BAILIAN_BASE = "https://ws-eg0sswldqhhc6qko.cn-beijing.maas.aliyuncs.com/compati
 BAILIAN_KEY = "***REMOVED-BAILIAN-KEY***"
 
 MODEL_ENDPOINTS = {
-    # 千问全系 → 百炼最新版本
-    "qwen-turbo":     {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen-turbo-latest", "auth_type": "bearer"},
-    "qwen-plus":      {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen3.6-plus", "auth_type": "bearer"},
-    "qwen-max":       {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen3-max-2026-01-23", "auth_type": "bearer"},
-    "qwen-coder-plus": {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen3-coder-plus", "auth_type": "bearer"},
-    "qwen":           {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen3.6-plus", "auth_type": "bearer"},
-    # 第三方模型 → 百炼
-    "glm-4":          {"url": f"{BAILIAN_BASE}/chat/completions", "model": "glm-5.1", "auth_type": "bearer"},
-    "zhipu":          {"url": f"{BAILIAN_BASE}/chat/completions", "model": "glm-5.1", "auth_type": "bearer"},
-    "kimi":           {"url": f"{BAILIAN_BASE}/chat/completions", "model": "kimi-k2.5", "auth_type": "bearer"},
+    # 千问 3.7 系列
+    "qwen-plus":      {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen3.7-plus", "auth_type": "bearer"},
+    "qwen-max":       {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen3.7-max", "auth_type": "bearer"},
+    "qwen-turbo":     {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen3.6-flash", "auth_type": "bearer"},
+    "qwen-coder-plus": {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen3.7-plus", "auth_type": "bearer"},
+    "qwen":           {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen3.7-plus", "auth_type": "bearer"},
+    # DeepSeek V4 系列（也走百炼）
+    "deepseek":       {"url": f"{BAILIAN_BASE}/chat/completions", "model": "deepseek-v4-pro", "auth_type": "bearer"},
+    # 第三方顶级模型
+    "glm-4":          {"url": f"{BAILIAN_BASE}/chat/completions", "model": "glm-5.2", "auth_type": "bearer"},
+    "zhipu":          {"url": f"{BAILIAN_BASE}/chat/completions", "model": "glm-5.2", "auth_type": "bearer"},
+    "kimi":           {"url": f"{BAILIAN_BASE}/chat/completions", "model": "kimi-k2.7-code", "auth_type": "bearer"},
     "minimax":        {"url": f"{BAILIAN_BASE}/chat/completions", "model": "MiniMax-M2.5", "auth_type": "bearer"},
-    "doubao":         {"url": f"{BAILIAN_BASE}/chat/completions", "model": "qwen3.6-flash", "auth_type": "bearer"},
-    # DeepSeek 独立
-    "deepseek":       {"url": "https://api.deepseek.com/chat/completions", "model": "deepseek-chat", "auth_type": "bearer"},
 }
 
 # 聊天历史记录（内存中，重启丢失——生产应换 Redis）

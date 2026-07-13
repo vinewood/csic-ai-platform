@@ -168,13 +168,11 @@ const iconMap = { ...Icons }
 
 const tabs = [{id:'chat',label:'学术对话',icon:TrendCharts},{id:'read',label:'论文阅读',icon:Reading},{id:'write',label:'学术写作',icon:EditPen},{id:'search',label:'文献检索',icon:Search},{id:'journal',label:'投稿选刊',icon:Promotion}]
 const tab = ref('chat'), model = ref('deepseek'), models = [
-  { label: 'DeepSeek V3', value: 'deepseek' },
-  { label: 'Qwen3.6 Plus (默认)', value: 'qwen-plus' },
-  { label: 'Qwen3 Max', value: 'qwen-max' },
-  { label: 'Qwen Turbo', value: 'qwen-turbo' },
-  { label: 'Qwen3 Coder+', value: 'qwen-coder-plus' },
-  { label: 'GLM-5.1', value: 'glm-4' },
-  { label: 'Kimi K2.5', value: 'kimi' },
+  { label: 'Qwen3.7 Plus (默认)', value: 'qwen-plus' },
+  { label: 'Qwen3.7 Max', value: 'qwen-max' },
+  { label: 'DeepSeek V4 Pro', value: 'deepseek' },
+  { label: 'GLM-5.2', value: 'glm-4' },
+  { label: 'Kimi K2.7 Code', value: 'kimi' },
   { label: 'MiniMax M2.5', value: 'minimax' },
 ]
 const B = location.port==='5173'?'http://localhost:8000':''
