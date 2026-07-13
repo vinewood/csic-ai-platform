@@ -337,31 +337,39 @@ KHAN_BASE = "https://www.khanacademy.org/api/v1"
 
 
 async def khan_search_topics(query: str = "") -> dict:
-    """搜索 Khan Academy 课程主题"""
-    async with httpx.AsyncClient(timeout=20) as c:
-        if query:
+    """搜索 Khan Academy 课程主题（使用公开 Topic Tree API）"""
+    async with httpx.AsyncClient(timeout=25, follow_redirects=True) as c:
+        try:
             r = await c.get(f"{KHAN_BASE}/topictree")
+            if r.status_code != 200:
+                return {"topics": [], "error": f"Khan API 返回 {r.status_code}", "total": 0}
+            
             data = r.json()
-            # Filter matching topics
-            matches = []
-            def search_node(node):
-                if query.lower() in node.get("translated_title", "").lower():
-                    matches.append(node)
+            topics = []
+            
+            def collect(node, depth=0):
+                if depth > 3: return
+                title = node.get("translated_title", "") or node.get("standalone_title", "") or node.get("title", "")
+                if query:
+                    if query.lower() in title.lower():
+                        topics.append({
+                            "id": node.get("id", node.get("node_slug", "")),
+                            "title": title,
+                            "kind": node.get("kind", ""),
+                            "description": (node.get("description", "") or "")[:100],
+                            "children_count": len(node.get("children", []))
+                        })
+                elif depth <= 1:
+                    topics.append({
+                        "id": node.get("id", node.get("node_slug", "")),
+                        "title": title,
+                        "kind": node.get("kind", ""),
+                        "children_count": len(node.get("children", []))
+                    })
                 for child in node.get("children", []):
-                    search_node(child)
-            search_node(data)
-            return {"topics": [{
-                "id": m.get("id"), "title": m.get("translated_title", ""),
-                "kind": m.get("kind", ""),
-                "children_count": len(m.get("children", []))
-            } for m in matches[:20]], "total": len(matches)}
-        else:
-            r = await c.get(f"{KHAN_BASE}/topictree")
-            data = r.json()
-            def top_level(node):
-                return [{
-                    "id": n.get("id"), "title": n.get("translated_title", ""),
-                    "kind": n.get("kind", ""),
-                    "children_count": len(n.get("children", []))
-                } for n in node.get("children", [])[:12]]
-            return {"topics": top_level(data), "total": len(top_level(data))}
+                    collect(child, depth + 1)
+            
+            collect(data)
+            return {"topics": topics[:30], "total": len(topics)}
+        except Exception as e:
+            return {"topics": [], "error": str(e), "total": 0}
