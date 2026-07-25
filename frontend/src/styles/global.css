@@ -179,3 +179,41 @@
   border-color: #1677ff !important;
   box-shadow: 0 2px 6px rgba(22, 119, 255, 0.25);
 }
+
+/* ===== v3.1.0 全面打磨 ===== */
+
+/* 全局字体与渲染 */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* 细滚动条（全站统一） */
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-thumb { background: #d4d7dd; border-radius: 3px; }
+*::-webkit-scrollbar-thumb:hover { background: #b6bbc4; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* 文本选中色 */
+::selection { background: rgba(22, 119, 255, 0.18); }
+
+/* Element Plus 一致性微调 */
+.el-card { border-radius: var(--radius-md) !important; box-shadow: var(--shadow-card) !important; }
+.el-dialog { border-radius: var(--radius-lg) !important; }
+.el-table { --el-table-header-bg-color: #fafbfc; }
+.el-message-box { border-radius: var(--radius-md) !important; }
+.el-tag { border-radius: 4px; }
+
+/* 输入聚焦统一品牌色 */
+.el-select__wrapper.is-focused,
+.el-input__wrapper.is-focus { box-shadow: 0 0 0 1px #1677ff inset !important; }
+
+/* 页面切换淡入 */
+.fade-enter-active, .fade-leave-active { transition: opacity var(--transition-base); }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+/* 加载骨架屏颜色统一 */
+.el-skeleton { --el-skeleton-color: #f2f3f5; --el-skeleton-to-color: #e8eaee; }

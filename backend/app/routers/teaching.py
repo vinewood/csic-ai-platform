@@ -16,26 +16,33 @@ class TeachingRequest(BaseModel):
     topic: Optional[str] = None
     inspire_type: Optional[str] = None
     content_types: Optional[List[str]] = None
+    model: Optional[str] = "deepseek"  # v3.1.0：支持指定模型，路由见 MODEL_ENDPOINTS
 
 
 async def _ai_call(messages: list, model: str = "deepseek") -> str:
-    """通用 AI 调用函数"""
-    api_key = get_api_config(model)
+    """通用 AI 调用（非流式）—— 统一走 MODEL_ENDPOINTS 路由
+
+    修复历史 bug：旧实现无视 model 参数、永远发 deepseek 模型名，
+    导致 qwen/zhipu 等百炼路由必然报错。现统一映射端点+模型名+密钥来源。
+    """
+    from ..services.dify_service import MODEL_ENDPOINTS
+
+    ep = MODEL_ENDPOINTS.get(model, MODEL_ENDPOINTS["deepseek"])
+    if ep.get("route") == "deepseek":
+        api_key = get_api_config("deepseek")
+        provider_label = "DeepSeek"
+    else:
+        api_key = get_api_config("bailian") or get_api_config("dashscope") or get_api_config("qwen")
+        provider_label = "百炼/DashScope"
     if not api_key:
-        raise HTTPException(status_code=503, detail=f"请先配置 {model} 的 API Key：系统管理 → API 配置")
+        raise HTTPException(status_code=503, detail=f"请先配置 {provider_label} 的 API Key：系统管理 → API 配置")
 
     import httpx
-    endpoint = "https://api.deepseek.com/chat/completions"
-    if model == "qwen":
-        endpoint = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
-    elif model == "zhipu":
-        endpoint = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
-
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.post(
-            endpoint,
+            ep["url"],
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"model": "deepseek-v4-pro", "messages": messages, "temperature": 0.7}
+            json={"model": ep["model"], "messages": messages, "temperature": 0.7}
         )
         if resp.status_code != 200:
             raise HTTPException(status_code=502, detail=f"AI 调用失败: {resp.text[:200]}")
@@ -57,7 +64,7 @@ async def generate_topics(req: TeachingRequest, current_user: dict = Depends(get
 仅输出 JSON 数组，不要其他文字。"""
 
     try:
-        result = await _ai_call([{"role": "user", "content": prompt}])
+        result = await _ai_call([{"role": "user", "content": prompt}], model=req.model)
         # 清理 AI 输出
         result = result.strip()
         if result.startswith("```"):
@@ -100,7 +107,7 @@ async def inspire_ideas(req: TeachingRequest, current_user: dict = Depends(get_c
 仅输出 JSON 数组。"""
 
     try:
-        result = await _ai_call([{"role": "user", "content": prompt}])
+        result = await _ai_call([{"role": "user", "content": prompt}], model=req.model)
         result = result.strip()
         if result.startswith("```"):
             result = result.split("\n", 1)[1].rstrip("```").strip()
@@ -136,7 +143,7 @@ async def generate_content(req: TeachingRequest, current_user: dict = Depends(ge
         prompt = prompt_map.get(t, "请为主题 " + topic_title + " 生成" + t + "内容")
 
         try:
-            content = await _ai_call([{"role": "user", "content": prompt}])
+            content = await _ai_call([{"role": "user", "content": prompt}], model=req.model)
             result[t] = content
         except Exception:
             result[t] = f"【{t}】AI 生成失败，请检查 API Key 配置后重试。"
