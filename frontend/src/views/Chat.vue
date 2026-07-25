@@ -183,9 +183,41 @@ async function delConv(c) {
   convs.value = convs.value.filter(x => x.id !== c.id)
   if (activeConv.value === c.id) newConv()
 }
+// 历史消息按轮次分组（与 Teaching 页同一逻辑），供宫格重建
+function groupRounds(list) {
+  const rounds = []
+  let cur = null
+  for (const m of list) {
+    if (m.role === 'user') {
+      if (!cur || cur.answers.length > 0) { cur = { question: m.content, answers: [] }; rounds.push(cur) }
+    } else {
+      if (!cur) { cur = { question: '', answers: [] }; rounds.push(cur) }
+      cur.answers.push({ model: m.model || '', content: m.content })
+    }
+  }
+  return rounds
+}
+
 async function loadMessages(convId) {
   const data = await apiGet(`/api/chat/conversations/${convId}/messages`)
-  msgs.value = data ? data.map(m => ({ role: m.role, content: m.content })) : []
+  const list = data ? data.map(m => ({ role: m.role, content: m.content, model: m.model || '' })) : []
+  msgs.value = list
+  const rounds = groupRounds(list)
+  const isMultiHistory = rounds.some(r => r.answers.filter(a => a.model).length > 1)
+
+  if (isMultiHistory || mode.value === 'multi') {
+    // 多模型历史（或当前处于多模型视图）：重建宫格对比界面
+    if (isMultiHistory) mode.value = 'multi'
+    await nextTick()
+    const order = gridRef.value?.loadRounds(rounds) || []
+    if (order.length) {
+      multiModels.value = order
+      multiStarted.value = true
+    } else if (list.length) {
+      mode.value = 'single'
+      ElMessage.info('该历史为多模型宫格上线前的记录，已按单模型视图展示')
+    }
+  }
 }
 
 async function send(text) {

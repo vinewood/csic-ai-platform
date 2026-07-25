@@ -131,10 +131,11 @@ async function broadcast(query) {
   emit('busy', true)
 
   // 首发：先建立/确认会话，拿到 conversation_id 后再并发其余
+  // 仅首发请求保存用户消息（save_user=true），避免 N 条重复用户消息
   const first = panes.value[0]
   let metaResolve
   const metaPromise = new Promise(r => { metaResolve = r })
-  const firstDone = streamOne(query.trim(), first, props.getConvId(), metaResolve)
+  const firstDone = streamOne(query.trim(), first, props.getConvId(), metaResolve, true)
   const newConvId = await Promise.race([
     metaPromise,
     new Promise(r => setTimeout(() => r(null), 5000)),   // 5s 兜底，不阻塞其余模型
@@ -143,12 +144,12 @@ async function broadcast(query) {
 
   await Promise.all([
     firstDone,
-    ...panes.value.slice(1).map(p => streamOne(query.trim(), p, newConvId || props.getConvId(), null)),
+    ...panes.value.slice(1).map(p => streamOne(query.trim(), p, newConvId || props.getConvId(), null, false)),
   ])
   emit('busy', false)
 }
 
-async function streamOne(query, pane, convId, onMeta) {
+async function streamOne(query, pane, convId, onMeta, saveUser) {
   const token = localStorage.getItem('csic_token')
   const API_BASE = window.location.port === '5173' ? 'http://localhost:8000' : ''
   const target = pane.msgs[pane.msgs.length - 1]
@@ -160,6 +161,7 @@ async function streamOne(query, pane, convId, onMeta) {
       body: JSON.stringify({
         query, model: pane.model,
         conversation_id: convId === 'new' ? '' : (convId || ''),
+        save_user: saveUser,
         ...props.extraFn(),
       })
     })
@@ -188,7 +190,32 @@ async function streamOne(query, pane, convId, onMeta) {
   }
 }
 
-defineExpose({ broadcast, clear, panes })
+/**
+ * 从历史消息重建宫格（点击历史对话时调用）
+ * rounds: [{ question, answers: [{ model, content }] }]
+ * 父级按轮次分组历史：连续的 user 消息开启一轮，随后的 assistant 按 model 归位
+ */
+function loadRounds(rounds) {
+  const modelOrder = []
+  rounds.forEach(r => r.answers.forEach(a => {
+    if (a.model && !modelOrder.includes(a.model)) modelOrder.push(a.model)
+  }))
+  panes.value = modelOrder.map(m => ({ model: m, msgs: [], streaming: false }))
+  rounds.forEach(r => {
+    panes.value.forEach(p => {
+      const ans = r.answers.find(a => a.model === p.model)
+      if (ans) {
+        p.msgs.push({ role: 'user', content: r.question })
+        p.msgs.push({ role: 'assistant', content: ans.content })
+      }
+    })
+  })
+  maximized.value = null
+  panes.value.forEach((_, i) => scrollPane(i))
+  return modelOrder   // 父级可据此同步模型选择器
+}
+
+defineExpose({ broadcast, clear, loadRounds, panes })
 </script>
 
 <style scoped>

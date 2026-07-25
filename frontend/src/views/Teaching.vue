@@ -217,10 +217,47 @@ function useFunc(f) {
     }
   })
 }
+/**
+ * 历史消息按轮次分组：
+ * 连续的 user 消息开启新一轮（多模型旧数据的 N 条重复 user 只取第一条），
+ * 随后的 assistant 消息按 model 归入 answers，供宫格重建
+ */
+function groupRounds(list) {
+  const rounds = []
+  let cur = null
+  for (const m of list) {
+    if (m.role === 'user') {
+      if (!cur || cur.answers.length > 0) { cur = { question: m.content, answers: [] }; rounds.push(cur) }
+    } else {
+      if (!cur) { cur = { question: '', answers: [] }; rounds.push(cur) }
+      cur.answers.push({ model: m.model || '', content: m.content })
+    }
+  }
+  return rounds
+}
+
 async function loadConv(c) {
   convId.value = c.id
   const data = await apiGet(`/api/chat/conversations/${c.id}/messages`)
-  msgs.value = data ? data.map(m => ({ role: m.role, content: m.content })) : []
+  const list = data ? data.map(m => ({ role: m.role, content: m.content, model: m.model || '' })) : []
+  msgs.value = list
+  const rounds = groupRounds(list)
+  const isMultiHistory = rounds.some(r => r.answers.filter(a => a.model).length > 1)
+
+  if (isMultiHistory || mode.value === 'multi') {
+    // 多模型历史（或当前处于多模型视图）：重建宫格对比界面
+    if (isMultiHistory) mode.value = 'multi'   // 自动切到多模型视图
+    await nextTick()
+    const order = gridRef.value?.loadRounds(rounds) || []
+    if (order.length) {
+      multiModels.value = order
+      multiStarted.value = true
+    } else if (list.length) {
+      // 宫格功能上线前的旧历史没有模型标识，回退单模型视图
+      mode.value = 'single'
+      ElMessage.info('该历史为多模型宫格上线前的记录，已按单模型视图展示')
+    }
+  }
 }
 async function refreshConvs() {
   const c = await apiGet('/api/chat/conversations')

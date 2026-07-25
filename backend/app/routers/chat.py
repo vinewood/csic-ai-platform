@@ -120,10 +120,11 @@ async def dify_chat_stream(req: ChatRequest, current_user: dict = Depends(get_cu
                 thinking = True
                 yield f"data: {json.dumps({'type':'meta','conversation_id':conversation_id})}\n\n"
             
-            # 保存用户消息
-            user_msg = Message(conversation_id=int(conversation_id), role="user", content=query)
-            db.add(user_msg)
-            await db.commit()
+            # 保存用户消息（多模型对比时仅首发请求保存，其余 save_user=False 跳过）
+            if req.save_user:
+                user_msg = Message(conversation_id=int(conversation_id), role="user", content=query, model=model)
+                db.add(user_msg)
+                await db.commit()
         
         try:
             async for chunk in chat_stream(
@@ -141,10 +142,10 @@ async def dify_chat_stream(req: ChatRequest, current_user: dict = Depends(get_cu
         except Exception as e:
             yield f"data: {json.dumps({'content':f'[错误] {e}'})}\n\n"
         
-        # 保存 AI 回复
+        # 保存 AI 回复（带模型标识，供多模型历史重建宫格）
         if full_response.strip():
             async with async_session() as db:
-                ai_msg = Message(conversation_id=int(conversation_id), role="assistant", content=full_response)
+                ai_msg = Message(conversation_id=int(conversation_id), role="assistant", content=full_response, model=model)
                 db.add(ai_msg)
                 await db.commit()
         
@@ -185,7 +186,7 @@ async def get_messages(conversation_id: int, current_user: dict = Depends(get_cu
         )
         msgs = result.scalars().all()
         return [
-            {"id": m.id, "role": m.role, "content": m.content, "created_at": m.created_at.isoformat() if m.created_at else None}
+            {"id": m.id, "role": m.role, "content": m.content, "model": m.model or "", "created_at": m.created_at.isoformat() if m.created_at else None}
             for m in msgs
         ]
 

@@ -50,6 +50,7 @@ class ChatRequest(BaseModel):
     top_p: Optional[float] = 0.9
     max_tokens: Optional[int] = 2048
     files: Optional[list] = None
+    save_user: Optional[bool] = True  # 多模型对比时仅首发请求保存用户消息，避免 N 条重复
 
 class ConversationOut(BaseModel):
     id: int
