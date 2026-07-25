@@ -37,8 +37,18 @@ async def fetch_from_rsshub(route: str) -> List[Dict]:
 
 
 async def fetch_rss(url: str) -> List[Dict]:
+    """抓取单个 RSS 源 —— httpx 10 秒超时后交 feedparser 解析
+
+    修复历史 bug：旧实现 feedparser.parse(url) 同步直连且无超时，
+    失效源可挂起 60s+，17 个源串行叠加必然触发 nginx 504。
+    """
     try:
-        feed = feedparser.parse(url)
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True,
+                                     headers={"User-Agent": "Mozilla/5.0 RSSReader"}) as client:
+            resp = await client.get(url)
+        if resp.status_code >= 400:
+            return []
+        feed = feedparser.parse(resp.content)
         return [{
             "title": _clean_html(e.get("title", "")),
             "link": e.get("link", ""),

@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 from ..schemas import ChatRequest
 from ..auth import get_current_user
 from ..services.integrations import DifyService
-from ..services.dify_service import chat_stream as direct_chat, get_conversation_list, create_conversation, delete_conversation
+from ..services.dify_service import chat_stream as direct_chat, delete_conversation
 
 router = APIRouter(prefix="/api/chat", tags=["对话"])
 
@@ -66,11 +66,11 @@ async def chat_blocking(req: ChatRequest, current_user: dict = Depends(get_curre
     except Exception as e:
         pass
     
-    # Last resort: call our academic engine
+    # Last resort: call our academic engine（_call_llm 现在失败即抛 RuntimeError）
     try:
         from ..services.academic_service import AcademicEngine
         result = await AcademicEngine.chat(query)
-        if result and "请先配置" not in result:
+        if result:
             return {"result": result, "model": "deepseek"}
     except Exception:
         pass

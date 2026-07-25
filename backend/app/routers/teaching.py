@@ -66,30 +66,24 @@ async def generate_topics(req: TeachingRequest, current_user: dict = Depends(get
 
     try:
         result = await _ai_call([{"role": "user", "content": prompt}], model=req.model)
-        # 清理 AI 输出
-        result = result.strip()
-        if result.startswith("```"):
-            result = result.split("\n", 1)[1]
-            if result.endswith("```"):
-                result = result[:-3]
-        topics = json.loads(result)
-        if isinstance(topics, list) and len(topics) > 0:
-            return {"topics": topics}
-    except Exception:
-        pass
+    except HTTPException:
+        raise  # 503 缺 key / 502 AI 故障必须如实上抛，禁止吞掉后冒充成功
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"AI 课题生成失败：{e}")
 
-    # Fallback: 模板生成
-    levels = ["入门", "标准深度", "深入"]
-    audiences = ["党校学员", "青年干部", "中层管理人员", "党委成员"]
-    return {"topics": [
-        {
-            "title": f"{input_text}教学专题{i+1}",
-            "desc": f"围绕{input_text}，系统讲解核心知识点",
-            "level": levels[i % 3],
-            "hours": 2 + i * 2,
-            "audience": audiences[i % 4]
-        } for i in range(count)
-    ]}
+    # 清理 AI 输出并解析 JSON；解析失败如实报错，禁止回退模板假数据
+    result = result.strip()
+    if result.startswith("```"):
+        result = result.split("\n", 1)[1]
+        if result.endswith("```"):
+            result = result[:-3]
+    try:
+        topics = json.loads(result)
+    except Exception:
+        raise HTTPException(status_code=502, detail="AI 返回格式异常（非 JSON），请重试")
+    if isinstance(topics, list) and len(topics) > 0:
+        return {"topics": topics}
+    raise HTTPException(status_code=502, detail="AI 未返回有效课题，请重试")
 
 
 @router.post("/inspire")
@@ -109,21 +103,21 @@ async def inspire_ideas(req: TeachingRequest, current_user: dict = Depends(get_c
 
     try:
         result = await _ai_call([{"role": "user", "content": prompt}], model=req.model)
-        result = result.strip()
-        if result.startswith("```"):
-            result = result.split("\n", 1)[1].rstrip("```").strip()
-        ideas = json.loads(result)
-        if isinstance(ideas, list) and len(ideas) > 0:
-            return {"ideas": ideas}
-    except Exception:
-        pass
+    except HTTPException:
+        raise  # 503 缺 key / 502 AI 故障必须如实上抛
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"AI 灵感生成失败：{e}")
 
-    return {"ideas": [
-        {"title": "真实案例分析", "detail": f"围绕{topic_title}，选取实际工作场景进行案例教学"},
-        {"title": "互动讨论", "detail": f"分组讨论{topic_title}相关的实际问题，分享经验"},
-        {"title": "模拟演练", "detail": f"设计{topic_title}的模拟场景，学员实操演练"},
-        {"title": "专家讲座", "detail": f"邀请{topic_title}领域专家进行专题讲座和经验分享"},
-    ]}
+    result = result.strip()
+    if result.startswith("```"):
+        result = result.split("\n", 1)[1].rstrip("```").strip()
+    try:
+        ideas = json.loads(result)
+    except Exception:
+        raise HTTPException(status_code=502, detail="AI 返回格式异常（非 JSON），请重试")
+    if isinstance(ideas, list) and len(ideas) > 0:
+        return {"ideas": ideas}
+    raise HTTPException(status_code=502, detail="AI 未返回有效创意，请重试")
 
 
 @router.post("/content")

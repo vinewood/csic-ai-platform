@@ -29,9 +29,16 @@ async def send_message(req: ChatReq, current_user: dict = Depends(get_current_us
     async def generate():
         import httpx
         from ..config import get_api_config
-        key = get_api_config(model)
+        from ..services.dify_service import MODEL_ENDPOINTS
+        ep = MODEL_ENDPOINTS.get(model, MODEL_ENDPOINTS["deepseek"])
+        if ep.get("route") == "deepseek":
+            key = get_api_config("deepseek")
+            label = "DeepSeek"
+        else:
+            key = get_api_config("bailian") or get_api_config("dashscope") or get_api_config("qwen")
+            label = "百炼/DashScope"
         if not key:
-            yield f"data: {json.dumps({'content':f'[请先配置 {model} API Key]'})}\n\n"
+            yield f"data: {json.dumps({'content':f'[错误] 未配置 {label} API Key，请到 系统管理 → API 配置 设置'})}\n\n"
             yield "data: [DONE]\n\n"; return
         
         full = ""
@@ -50,9 +57,9 @@ async def send_message(req: ChatReq, current_user: dict = Depends(get_current_us
         
         try:
             async with httpx.AsyncClient(timeout=120) as c:
-                async with c.stream("POST", "https://api.deepseek.com/chat/completions",
+                async with c.stream("POST", ep["url"],
                     headers={"Authorization":f"Bearer {key}","Content-Type":"application/json"},
-                    json={"model":"deepseek-chat","messages":[{"role":"user","content":query}],"temperature":0.7,"stream":True}
+                    json={"model":ep["model"],"messages":[{"role":"user","content":query}],"temperature":0.7,"stream":True}
                 ) as resp:
                     async for line in resp.aiter_lines():
                         if line.startswith("data: "):

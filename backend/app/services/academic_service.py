@@ -38,11 +38,12 @@ class AcademicEngine:
         result = await _call_llm(prompt)
         try:
             result = _extract_json(result)
-            if isinstance(result, list):
+            if isinstance(result, list) and len(result) > 0:
                 return result
         except Exception:
             pass
-        return _fallback_topics(direction, count)
+        # 失败即明示：AI 不可用或返回格式异常时如实报错，禁止回退模板假数据
+        raise RuntimeError("AI 选题生成失败或返回格式异常，请重试")
 
     @staticmethod
     async def evaluate_topic(title: str, description: str = "", field: str = "") -> dict:
@@ -68,13 +69,8 @@ class AcademicEngine:
         try:
             return _extract_json(result)
         except Exception:
-            return {
-                "academic_value": {"score": 82, "detail": "具有较高理论意义"},
-                "innovation": {"score": 78, "detail": "有一定方法创新"},
-                "feasibility": {"score": 85, "detail": "技术路线清晰可行"},
-                "practical_value": {"score": 72, "detail": "可应用于行业实践"},
-                "advice": "建议加强实验对比分析，补充更多数据验证方法泛化能力"
-            }
+            # 失败即明示：绝不返回硬编码假评分冒充 AI 评估结果
+            raise RuntimeError("AI 选题测评失败或返回格式异常，请重试")
 
     @staticmethod
     async def translate_paper(text: str, target_lang: str = "zh") -> str:
@@ -140,34 +136,18 @@ class AcademicEngine:
 
 # ── 内部工具 ──
 
-def _get_deepseek_key() -> str:
-    """获取 DeepSeek API Key"""
-    key = os.getenv("DEEPSEEK_API_KEY", "")
-    if key:
-        return key
-    try:
-        import sqlite3
-        db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "data", "csic.db")
-        conn = sqlite3.connect(db_path)
-        row = conn.execute(
-            "SELECT config_json FROM api_configs WHERE provider='deepseek' LIMIT 1"
-        ).fetchone()
-        conn.close()
-        if row:
-            cfg = json.loads(row[0])
-            return cfg.get("key", "")
-    except Exception:
-        pass
-    return ""
-
-
 async def _call_llm(prompt: str, system: str = "") -> str:
-    """调用 DeepSeek LLM"""
+    """调用 DeepSeek LLM —— 统一从 api_configs 保险箱取 key，模型名用该账号真实可用的 deepseek-v4-pro
+
+    修复历史 bug：旧实现用 sqlite 直读 DB + 模型名 deepseek-chat（该账号不存在此模型，必然 400）。
+    失败即明示：抛 RuntimeError，由调用方决定如何呈现，禁止返回伪装内容。
+    """
     import httpx
-    
-    api_key = _get_deepseek_key()
+    from ..config import get_api_config
+
+    api_key = get_api_config("deepseek")
     if not api_key:
-        return "[请先配置 DeepSeek API Key]"
+        raise RuntimeError("未配置 DeepSeek API Key，请到 系统管理 → API 配置 中设置")
 
     messages = []
     if system:
@@ -182,7 +162,7 @@ async def _call_llm(prompt: str, system: str = "") -> str:
                 "Content-Type": "application/json"
             },
             json={
-                "model": "deepseek-chat",
+                "model": "deepseek-v4-pro",
                 "messages": messages,
                 "temperature": 0.7,
                 "max_tokens": 4096
@@ -190,7 +170,7 @@ async def _call_llm(prompt: str, system: str = "") -> str:
         )
         if resp.status_code == 200:
             return resp.json()["choices"][0]["message"]["content"]
-        return f"[API 错误: {resp.status_code}]"
+        raise RuntimeError(f"DeepSeek API 错误: {resp.status_code} {resp.text[:200]}")
 
 
 def _extract_json(text: str) -> dict:
@@ -201,23 +181,3 @@ def _extract_json(text: str) -> dict:
         lines = text.split("\n")
         text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
     return json.loads(text)
-
-
-def _fallback_topics(direction: str, count: int) -> list:
-    """AI 不可用时的选题模板"""
-    prefixes = [
-        "数字化转型路径研究", "智能化升级策略研究",
-        "创新管理模式探索", "可持续发展机制研究",
-        "人才培养体系构建", "信息安全防护体系",
-        "高质量发展路径", "协同创新机制"
-    ]
-    return [
-        {
-            "title": f"{direction}{prefixes[i % len(prefixes)]}",
-            "field": direction,
-            "innovation": 80 + i * 2,
-            "feasibility": 75 + i * 3,
-            "description": f"围绕{direction}领域，系统研究{prefixes[i % len(prefixes)]}的关键问题与解决方案。"
-        }
-        for i in range(count)
-    ]

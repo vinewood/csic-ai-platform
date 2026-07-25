@@ -34,20 +34,25 @@ async def list_users(db: AsyncSession = Depends(get_db), current_user: dict = De
     return [_user_to_dict(u) for u in result.scalars().all()]
 
 
-@router.post("", response_model=MessageResponse)
+@router.post("")
 async def create_user(req: UserCreate, db: AsyncSession = Depends(get_db), admin=Depends(get_admin_user)):
+    import secrets
     result = await db.execute(select(User).where(User.username == req.username))
     if result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="用户已存在")
+    # 未指定密码时生成一次性随机初始密码（仅在本次响应中显示一次，不落日志）
+    initial_password = req.password or secrets.token_urlsafe(9)
     user = User(
         username=req.username, email=req.email,
         real_name=req.real_name or "",
-        hashed_password=get_password_hash(req.password or "***REMOVED-PASSWORD***"),
+        hashed_password=get_password_hash(initial_password),
         is_active=True, status="active", role="user",
     )
     db.add(user)
     await db.commit()
-    return MessageResponse(message="用户已创建")
+    if req.password:
+        return {"message": "用户已创建"}
+    return {"message": f"用户已创建，初始密码：{initial_password}（仅本次显示，请立即转告用户修改）"}
 
 
 @router.put("/{user_id}", response_model=MessageResponse)

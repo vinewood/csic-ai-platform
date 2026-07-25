@@ -30,7 +30,7 @@ class UserOut(BaseModel):
 
 class UserCreate(BaseModel):
     username: str
-    password: str = "***REMOVED-PASSWORD***"
+    password: str = ""  # 留空时后端生成一次性随机初始密码（绝不使用固定默认密码）
     email: str = ""
     real_name: str = ""
 

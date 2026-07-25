@@ -11,14 +11,34 @@ router = APIRouter(prefix="/api/dify", tags=["Dify集成"],
     dependencies=[Depends(get_current_user)])  # v3.1.2 路由级鉴权
 
 DIFY_CONSOLE = "http://127.0.0.1:5001/console/api"
-DIFY_LOGIN = {"email": "admin@csic.cn", "password": "***REMOVED-PASSWORD***"}
 _token_cache = {"token": "", "expires": 0}
+
+async def _dify_credentials() -> dict:
+    """Dify 控制台凭证：只从服务器保险箱读取（环境变量 / api_configs 表），源码严禁硬编码（铁律）"""
+    import os
+    email = os.getenv("DIFY_ADMIN_EMAIL", "admin@csic.cn")
+    password = os.getenv("DIFY_ADMIN_PASSWORD", "")
+    if not password:
+        try:
+            from app.database import async_session
+            from app.models import ApiConfig
+            from sqlalchemy import select
+            async with async_session() as s:
+                row = (await s.execute(select(ApiConfig).where(ApiConfig.provider == "dify"))).scalar_one_or_none()
+                if row and row.config_json:
+                    password = row.config_json.get("console_password", "")
+        except Exception:
+            pass
+    return {"email": email, "password": password}
 
 async def _dify_token() -> str:
     if _token_cache["token"] and time.time() < _token_cache["expires"]:
         return _token_cache["token"]
+    creds = await _dify_credentials()
+    if not creds["password"]:
+        return ""
     async with httpx.AsyncClient(timeout=15) as c:
-        r = await c.post(f"{DIFY_CONSOLE}/login", json=DIFY_LOGIN)
+        r = await c.post(f"{DIFY_CONSOLE}/login", json=creds)
         if r.status_code == 200:
             token = r.json().get("data", {}).get("access_token", "")
             if token:
@@ -278,29 +298,34 @@ async def dify_health():
 
 @router.post("/init")
 async def dify_init(current_user: dict = Depends(get_current_user)):
-    """重新执行 Dify 初始化"""
-    token, account_ok, setup_ok = "", False, False
-    
-    # 1. Check current state
-    try:
-        async with httpx.AsyncClient(timeout=10) as c:
-            r = await c.post(f"{DIFY_CONSOLE}/login", json=DIFY_LOGIN)
-            if r.status_code == 200 and r.json().get("data", {}).get("access_token"):
-                return {"message": "Dify 已初始化并可正常登录", "status": "ok"}
-    except: pass
+    """重新执行 Dify 初始化（凭证从服务器保险箱读取；响应绝不回传密码）"""
+    creds = await _dify_credentials()
 
-    # 2. Try API init
-    try:
-        async with httpx.AsyncClient(timeout=30) as c:
-            r = await c.post(f"{DIFY_CONSOLE}/init", json={
-                "email": "admin@csic.cn", "name": "Admin", "password": "***REMOVED-PASSWORD***"
-            })
-            init_ok = r.status_code == 200 and r.json().get("result") == "success"
-    except: init_ok = False
+    # 1. Check current state
+    if creds["password"]:
+        try:
+            async with httpx.AsyncClient(timeout=10) as c:
+                r = await c.post(f"{DIFY_CONSOLE}/login", json=creds)
+                if r.status_code == 200 and r.json().get("data", {}).get("access_token"):
+                    return {"message": "Dify 已初始化并可正常登录", "status": "ok"}
+        except Exception:
+            pass
+
+    # 2. Try API init（仅当已配置控制台密码时）
+    init_ok = False
+    if creds["password"]:
+        try:
+            async with httpx.AsyncClient(timeout=30) as c:
+                r = await c.post(f"{DIFY_CONSOLE}/init", json={
+                    "email": creds["email"], "name": "Admin", "password": creds["password"]
+                })
+                init_ok = r.status_code == 200 and r.json().get("result") == "success"
+        except Exception:
+            init_ok = False
 
     return {
         "message": "Dify 初始化已触发" if init_ok else "请手动访问 Dify 控制台完成初始化",
         "status": "init_triggered" if init_ok else "needs_manual",
         "url": "https://csic.thinkalike.com.cn/dify/",
-        "credentials": {"email": "admin@csic.cn", "password": "***REMOVED-PASSWORD***"}
+        "account": creds["email"]
     }

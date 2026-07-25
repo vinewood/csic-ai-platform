@@ -1,7 +1,19 @@
 """种子数据 — 全量初始化所有内置数据（技能/RSS/知识库/科研/教学）"""
+import os
+import secrets
 import bcrypt
 from sqlalchemy import select
 from app.models import User, Skill, KnowledgeBase, KnowledgeDoc, RssSource, ResearchTopic
+
+
+def _initial_password(role: str) -> str:
+    """初始密码：优先读环境变量，否则生成随机密码并打印一次（源码严禁硬编码真实密码）"""
+    env_key = "ADMIN_PASSWORD" if role == "admin" else "SEED_USER_PASSWORD"
+    pw = os.getenv(env_key, "")
+    if not pw:
+        pw = secrets.token_urlsafe(12)
+        print(f"[seed] {role} 初始随机密码（仅显示一次，请立即登录修改）: {pw}")
+    return pw
 
 
 async def seed_all(session):
@@ -13,16 +25,17 @@ async def seed_all(session):
     # ── 1. 管理员 ──
     user = User(
         username="admin", email="admin@csic.cn",
-        hashed_password=bcrypt.hashpw(b"***REMOVED-PASSWORD***", bcrypt.gensalt()).decode(),
+        hashed_password=bcrypt.hashpw(_initial_password("admin").encode(), bcrypt.gensalt()).decode(),
         is_active=True, role="admin"
     )
     session.add(user)
     await session.flush()
 
     # ── 2. 普通用户 ──
+    demo_pw = _initial_password("user")
     for uname in ["lecturer01", "researcher01", "editor01"]:
         session.add(User(username=uname, email=f"{uname}@csic.cn",
-                          hashed_password=bcrypt.hashpw(b"***REMOVED-PASSWORD***", bcrypt.gensalt()).decode(),
+                          hashed_password=bcrypt.hashpw(demo_pw.encode(), bcrypt.gensalt()).decode(),
                           is_active=True, role="user" if uname != "editor01" else "editor"))
 
     # ── 3. 技能中心（14个真实技能 — 带系统提示词和图标） ──

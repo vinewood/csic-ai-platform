@@ -53,14 +53,30 @@ async def delete_source(source_id: int, db: AsyncSession = Depends(get_db)):
     return MessageResponse(message="已删除")
 
 
+async def _fetch_all_sources(sources) -> list:
+    """并发抓取全部启用的 RSS 源（每源独立超时与容错），返回 [(source, articles), ...]
+
+    修复历史 bug：旧实现 17 个源串行抓取，任一失效源挂起即叠加超时（nginx 504）。
+    """
+    import asyncio
+
+    async def _one(src):
+        try:
+            return src, await fetch_rss(src.url)
+        except Exception:
+            return src, []
+
+    results = await asyncio.gather(*[_one(s) for s in sources])
+    return results
+
+
 @router.post("/fetch")
 async def fetch_all_rss(db: AsyncSession = Depends(get_db)):
     """手动触发 RSS 抓取"""
     result = await db.execute(select(RssSource).where(RssSource.active == True))
     sources = result.scalars().all()
     count = 0
-    for src in sources:
-        articles = await fetch_rss(src.url)
+    for src, articles in await _fetch_all_sources(sources):
         for art in articles[:10]:
             existing = await db.execute(
                 select(NewsArticle).where(NewsArticle.url == art.get("link", ""))
@@ -117,12 +133,11 @@ async def generate_daily_digest(db: AsyncSession = Depends(get_db)):
 
     today = date.today().isoformat()
 
-    # 1. 先触发 RSS 抓取
+    # 1. 先触发 RSS 抓取（并发，单源 10s 超时兜底）
     result = await db.execute(select(RssSource).where(RssSource.active == True))
     sources = result.scalars().all()
     fetch_count = 0
-    for src in sources:
-        articles = await fetch_rss(src.url)
+    for src, articles in await _fetch_all_sources(sources):
         for art in articles[:10]:
             existing = await db.execute(
                 select(NewsArticle).where(NewsArticle.url == art.get("link", ""))
@@ -188,7 +203,7 @@ async def generate_daily_digest(db: AsyncSession = Depends(get_db)):
                 "https://api.deepseek.com/chat/completions",
                 headers={"Authorization": f"Bearer {key}"},
                 json={
-                    "model": "deepseek-chat",
+                    "model": "deepseek-v4-pro",  # 该账号仅支持 v4 系列（旧值 deepseek-chat 必然 400）
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.7, "max_tokens": 2000,
                 }

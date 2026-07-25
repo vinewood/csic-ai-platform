@@ -16,18 +16,34 @@ class ResearchQuery(BaseModel):
 
 
 async def _ai_stream(prompt: str, model: str = "deepseek"):
-    """SSE 流式 — 真实 DeepSeek API 调用"""
+    """SSE 流式 — 统一走 MODEL_ENDPOINTS 路由（端点+模型名+密钥来源）
+
+    修复历史 bug：旧实现无视 model 参数、永远向 DeepSeek 端点发 "deepseek-chat"
+    （该账号不存在此模型，必然报错），科研工作台全部 AI 功能因此形同虚设。
+    """
     import httpx
     from ..config import get_api_config
-    key = get_api_config(model)
+    from ..services.dify_service import MODEL_ENDPOINTS
+
+    ep = MODEL_ENDPOINTS.get(model, MODEL_ENDPOINTS["deepseek"])
+    if ep.get("route") == "deepseek":
+        key = get_api_config("deepseek")
+        label = "DeepSeek"
+    else:
+        key = get_api_config("bailian") or get_api_config("dashscope") or get_api_config("qwen")
+        label = "百炼/DashScope"
     if not key:
-        yield f"data: {json.dumps({'content':f'[请先配置 {model} API Key]'})}\n\n"
+        yield f"data: {json.dumps({'content':f'[错误] 未配置 {label} API Key，请到 系统管理 → API 配置 设置'})}\n\n"
         yield "data: [DONE]\n\n"; return
     async with httpx.AsyncClient(timeout=120) as c:
-        async with c.stream("POST", "https://api.deepseek.com/chat/completions",
+        async with c.stream("POST", ep["url"],
             headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-            json={"model":"deepseek-chat","messages":[{"role":"user","content":prompt}],"temperature":0.7,"stream":True}
+            json={"model": ep["model"], "messages":[{"role":"user","content":prompt}],"temperature":0.7,"stream":True}
         ) as resp:
+            if resp.status_code != 200:
+                body = await resp.aread()
+                yield f"data: {json.dumps({'content':f'[错误] AI 调用失败 {resp.status_code}: {body[:160]}'})}\n\n"
+                yield "data: [DONE]\n\n"; return
             async for line in resp.aiter_lines():
                 if line.startswith("data: "):
                     d = line[6:]

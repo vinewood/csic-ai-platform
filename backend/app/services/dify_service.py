@@ -30,10 +30,38 @@ MODEL_ENDPOINTS = {
     "deepseek":       {"url": "https://api.deepseek.com/chat/completions", "model": "deepseek-v4-pro", "route": "deepseek"},
 }
 
-# 聊天历史记录（内存中，重启丢失——生产应换 Redis）
-chat_histories: dict[str, list[dict]] = {}
-conversation_store: dict[str, dict] = {}
-conv_id_counter: int = 0
+# 对话历史统一走 DB 单轨（v3.2.0）：内存字典 chat_histories/conversation_store 已废弃删除
+# 历史在 chat_stream 内按需从 messages 表读取，对话的增删改查全部落 DB
+
+
+async def _load_history(conversation_id: str, model: str, current_query: str) -> list[dict]:
+    """从 DB 加载对话历史（最近 12 轮以内）
+
+    多模型对比会话中同一轮有多条 assistant（每个模型一条），
+    为保证单模型上下文连贯，assistant 只取当前模型（或未标记模型的旧数据）。
+    末尾若与当前 query 相同的 user 消息（chat.py 已提前落库）则剔除，避免重复。
+    """
+    if not conversation_id or not conversation_id.isdigit():
+        return []
+    try:
+        from ..database import async_session
+        from ..models import Message
+        from sqlalchemy import select
+        async with async_session() as s:
+            rows = (await s.execute(
+                select(Message).where(Message.conversation_id == int(conversation_id))
+                .order_by(Message.id.desc()).limit(40)
+            )).scalars().all()
+        msgs = []
+        for m in reversed(rows):  # 恢复时间正序
+            if m.role == "assistant" and m.model and m.model != model:
+                continue  # 跳过其他模型的回答
+            msgs.append({"role": m.role, "content": m.content})
+        if msgs and msgs[-1]["role"] == "user" and msgs[-1]["content"] == current_query:
+            msgs = msgs[:-1]
+        return msgs[-24:]
+    except Exception:
+        return []
 
 
 async def chat_stream(
@@ -61,8 +89,8 @@ async def chat_stream(
             yield f"\n\n[百炼 API Key 未配置：系统管理 → API 配置 → DashScope/百炼]"
             return
 
-    # 构造消息
-    history = chat_histories.get(conversation_id or user_id, [])
+    # 构造消息（历史从 DB 单轨读取）
+    history = await _load_history(conversation_id, model, query)
     messages = history + [{"role": "user", "content": query}]
 
     headers = {
@@ -105,54 +133,22 @@ async def chat_stream(
                         except json.JSONDecodeError:
                             continue
 
-                # 保存到历史
-                cid = conversation_id or user_id
-                if cid not in chat_histories:
-                    chat_histories[cid] = []
-                chat_histories[cid].append({"role": "user", "content": query})
-                chat_histories[cid].append({"role": "assistant", "content": full_content})
-                # 只保留最近 20 轮
-                if len(chat_histories[cid]) > 40:
-                    chat_histories[cid] = chat_histories[cid][-40:]
-
         except Exception as e:
             yield f"\n\n[连接错误: {str(e)}]"
 
 
-def get_conversation_list(user_id: str) -> list[dict]:
-    """获取对话列表"""
-    result = []
-    for cid, conv in conversation_store.items():
-        if conv.get("user_id") == user_id:
-            result.append({
-                "id": cid,
-                "name": conv.get("name", "新对话"),
-                "model": conv.get("model", "qwen"),
-                "created_at": conv.get("created_at", ""),
-            })
-    return result
-
-
-def create_conversation(user_id: str, model: str, name: str = "新对话") -> str:
-    """创建新对话"""
-    global conv_id_counter
-    conv_id_counter += 1
-    cid = f"conv_{conv_id_counter}"
-    conversation_store[cid] = {
-        "id": cid,
-        "user_id": user_id,
-        "name": name,
-        "model": model,
-        "created_at": "",
-    }
-    return cid
-
-
-def delete_conversation(conv_id: str) -> bool:
-    """删除对话"""
-    if conv_id in conversation_store:
-        del conversation_store[conv_id]
-        if conv_id in chat_histories:
-            del chat_histories[conv_id]
+async def delete_conversation(conv_id: str) -> bool:
+    """删除对话及其全部消息（DB 单轨）"""
+    if not conv_id or not str(conv_id).isdigit():
+        return False
+    try:
+        from ..database import async_session
+        from ..models import Conversation, Message
+        from sqlalchemy import delete
+        async with async_session() as s:
+            await s.execute(delete(Message).where(Message.conversation_id == int(conv_id)))
+            await s.execute(delete(Conversation).where(Conversation.id == int(conv_id)))
+            await s.commit()
         return True
-    return False
+    except Exception:
+        return False
