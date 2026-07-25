@@ -18,3 +18,13 @@ venv/
 *.log
 # 保留 workbuddy 配置
 .workbuddy/
+
+# 铁律：任何 Key/密码只允许存在本地，禁止入库
+CONFIG.md
+*.key
+*key.txt
+secrets.*
+server.log
+deploy.tar.gz
+test-results/
+frontend-temp/

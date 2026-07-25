@@ -35,7 +35,7 @@ async def _ai_call(messages: list, model: str = "deepseek") -> str:
         resp = await client.post(
             endpoint,
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"model": "deepseek-chat", "messages": messages, "temperature": 0.7}
+            json={"model": "deepseek-v4-pro", "messages": messages, "temperature": 0.7}
         )
         if resp.status_code != 200:
             raise HTTPException(status_code=502, detail=f"AI 调用失败: {resp.text[:200]}")

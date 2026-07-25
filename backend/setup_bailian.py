@@ -1,10 +1,17 @@
-import sqlite3, json
+import sqlite3, json, os, sys
+
+# 铁律：任何 API Key 只允许存在本地/服务器，禁止硬编码进源码
+# 用法：BAILIAN_KEY=sk-xxx python3 setup_bailian.py
+BAILIAN_KEY = os.getenv("BAILIAN_KEY", "")
+if not BAILIAN_KEY:
+    print("错误：请先设置环境变量 BAILIAN_KEY（新 key 从阿里云百炼控制台获取）")
+    sys.exit(1)
 
 conn = sqlite3.connect('/www/wwwroot/csic.thinkalike.com.cn/data/csic.db')
 
 # Bailian config
 cfg = json.dumps({
-    "key": "***REMOVED-BAILIAN-KEY***",
+    "key": BAILIAN_KEY,
     "endpoint": "https://ws-eg0sswldqhhc6qko.cn-beijing.maas.aliyuncs.com/api/v1",
     "baseUrl": "https://ws-eg0sswldqhhc6qko.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
 })

@@ -11,9 +11,8 @@ from ..config import get_api_config
 
 
 # 模型 API 配置模板 — 百炼 OpenAI 兼容统一路由
-# https://ws-eg0sswldqhhc6qko.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+# 铁律：任何 API Key 只允许存在本地/服务器（api_configs 表），禁止硬编码进源码
 BAILIAN_BASE = "https://ws-eg0sswldqhhc6qko.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
-BAILIAN_KEY = "***REMOVED-BAILIAN-KEY***"
 
 MODEL_ENDPOINTS = {
     # 千问 3.7 — 百炼
@@ -27,8 +26,8 @@ MODEL_ENDPOINTS = {
     "zhipu":          {"url": f"{BAILIAN_BASE}/chat/completions", "model": "glm-5.2", "route": "bailian"},
     "kimi":           {"url": f"{BAILIAN_BASE}/chat/completions", "model": "kimi-k2.7-code", "route": "bailian"},
     "minimax":        {"url": f"{BAILIAN_BASE}/chat/completions", "model": "MiniMax-M2.5", "route": "bailian"},
-    # DeepSeek — 独立 API
-    "deepseek":       {"url": "https://api.deepseek.com/chat/completions", "model": "deepseek-chat", "route": "deepseek"},
+    # DeepSeek — 独立 API（该账号仅支持 deepseek-v4-pro / deepseek-v4-flash）
+    "deepseek":       {"url": "https://api.deepseek.com/chat/completions", "model": "deepseek-v4-pro", "route": "deepseek"},
 }
 
 # 聊天历史记录（内存中，重启丢失——生产应换 Redis）
@@ -56,7 +55,11 @@ async def chat_stream(
             yield f"\n\n[DeepSeek V4 Pro 需独立 API Key：系统管理 → API 配置 → DeepSeek]"
             return
     else:
-        api_key = BAILIAN_KEY
+        # 百炼统一路由：key 从 api_configs 表读取（provider 优先级 bailian > dashscope > qwen）
+        api_key = get_api_config("bailian") or get_api_config("dashscope") or get_api_config("qwen")
+        if not api_key:
+            yield f"\n\n[百炼 API Key 未配置：系统管理 → API 配置 → DashScope/百炼]"
+            return
 
     # 构造消息
     history = chat_histories.get(conversation_id or user_id, [])
@@ -93,30 +96,12 @@ async def chat_stream(
                             break
                         try:
                             data = json.loads(data_str)
-
-                            # qwen 格式
-                            if model == "qwen":
-                                if data.get("output", {}).get("choices"):
-                                    delta = data["output"]["choices"][0]["message"]["content"]
-                                    if delta:
-                                        full_content += delta
-                                        yield delta
-
-                            # minimax 格式
-                            elif model == "minimax":
-                                if data.get("choices"):
-                                    delta = data["choices"][0].get("delta", {}).get("content", "")
-                                    if delta:
-                                        full_content += delta
-                                        yield delta
-
-                            # OpenAI 格式
-                            else:
-                                if data.get("choices"):
-                                    delta = data["choices"][0].get("delta", {}).get("content", "")
-                                    if delta:
-                                        full_content += delta
-                                        yield delta
+                            # 百炼 compatible-mode 与 DeepSeek 均为 OpenAI 流式格式，统一解析
+                            if data.get("choices"):
+                                delta = data["choices"][0].get("delta", {}).get("content", "")
+                                if delta:
+                                    full_content += delta
+                                    yield delta
                         except json.JSONDecodeError:
                             continue
 

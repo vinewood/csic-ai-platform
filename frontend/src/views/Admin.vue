@@ -148,7 +148,7 @@
                   <template v-if="selectedApi === 'dashscope'">
                     <h4 class="api-form-title">百炼大模型 (Qwen Turbo/Plus/Max/Coder+)</h4>
                     <el-alert title="已配置 · OpenAI兼容 · Qwen全系+智谱+Kimi+豆包" type="success" :closable="false" show-icon style="margin-bottom:16px;" />
-                    <el-form-item label="API Key"><el-input :model-value="'已配置（不展示）'" disabled /></el-form-item>
+                    <el-form-item label="API Key"><el-input model-value="已配置（密钥仅存储于服务器数据库，安全起见不在前端展示）" disabled /></el-form-item>
                     <el-form-item label="兼容地址"><el-input :model-value="'maas.aliyuncs.com/compatible-mode/v1'" disabled /></el-form-item>
                   </template>
                   <template v-else-if="selectedApi === 'deepseek'">
