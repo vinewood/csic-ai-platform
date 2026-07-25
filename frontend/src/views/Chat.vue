@@ -25,12 +25,12 @@
         </el-radio-group>
 
         <template v-if="mode==='single'">
-          <el-select v-model="model" size="small" style="width:130px">
+          <el-select v-model="model" size="small" style="width:150px">
             <el-option v-for="m in modelList" :key="m" :label="modelLabel(m)" :value="m" />
           </el-select>
         </template>
         <template v-else>
-          <el-select v-model="multiModels" size="small" style="width:230px" multiple collapse-tags
+          <el-select v-model="multiModels" size="small" style="width:220px" multiple collapse-tags
                      :multiple-limit="6" placeholder="选择2-6个模型">
             <el-option v-for="m in modelList" :key="m" :label="modelLabel(m)" :value="m" />
           </el-select>
@@ -61,7 +61,7 @@
         <div v-if="showEmpty" class="empty-state">
           <div class="empty-logo">🎓</div>
           <h3>中船党校 AI 助手</h3>
-          <p>{{ mode==='multi' ? '多模型对比模式：同一问题，多家大模型同屏作答' : '输入消息开始与 AI 对话' }}</p>
+          <p>{{ mode==='multi' ? '多模型对比模式：同一问题，多家大模型同屏作答，区块可最大化聚焦' : '输入消息开始与 AI 对话' }}</p>
           <div class="quick-prompts">
             <span v-for="q in quickPrompts" :key="q" class="prompt-chip" @click="send(q)">{{ q }}</span>
           </div>
@@ -76,48 +76,11 @@
           </div>
         </template>
 
-        <!-- 多模型：宫格工作台 -->
-        <template v-else-if="panes.length">
-          <!-- 最大化态：单区块全屏聚焦 -->
-          <div v-if="maximized!==null" class="pane pane-max">
-            <div class="pane-header">
-              <span class="model-dot" :style="{background:modelColor(panes[maximized].model)}"></span>
-              <span class="pane-model-name">{{ modelLabel(panes[maximized].model) }}</span>
-              <span v-if="panes[maximized].streaming" class="pane-status">回答中…</span>
-              <el-button link size="small" title="还原到宫格" @click="maximized=null">
-                <el-icon><ZoomOut /></el-icon>
-              </el-button>
-            </div>
-            <div class="pane-body" :ref="el => setPaneRef(el, maximized)">
-              <div v-for="(m,i) in panes[maximized].msgs" :key="i" :class="['msg',m.role]">
-                <div class="msg-text" :class="{streaming: panes[maximized].streaming && i===panes[maximized].msgs.length-1 && m.role==='assistant'}"
-                     v-html="render(m.content)"></div>
-              </div>
-              <div v-if="!panes[maximized].msgs.length" class="pane-empty">在下方输入问题，{{ modelLabel(panes[maximized].model) }} 将在此作答</div>
-            </div>
-          </div>
-
-          <!-- 宫格态：2/4/6 宫格 -->
-          <div v-else class="pane-grid" :style="gridStyle">
-            <div v-for="(p,pi) in panes" :key="p.model" class="pane">
-              <div class="pane-header">
-                <span class="model-dot" :style="{background:modelColor(p.model)}"></span>
-                <span class="pane-model-name">{{ modelLabel(p.model) }}</span>
-                <span v-if="p.streaming" class="pane-status">回答中…</span>
-                <el-button link size="small" title="最大化" @click="maximized=pi">
-                  <el-icon><ZoomIn /></el-icon>
-                </el-button>
-              </div>
-              <div class="pane-body" :ref="el => setPaneRef(el, pi)">
-                <div v-for="(m,i) in p.msgs" :key="i" :class="['msg',m.role]">
-                  <div class="msg-text" :class="{streaming: p.streaming && i===p.msgs.length-1 && m.role==='assistant'}"
-                       v-html="render(m.content)"></div>
-                </div>
-                <div v-if="!p.msgs.length" class="pane-empty">等待提问…</div>
-              </div>
-            </div>
-          </div>
-        </template>
+        <!-- 多模型：宫格工作台（共享组件） -->
+        <ModelCompareGrid v-else ref="gridRef"
+          :models="multiModels" :grid-mode="gridMode"
+          :get-conv-id="() => activeConv" :extra-fn="chatExtra"
+          @meta="onGridMeta" @busy="v => thinking = v" />
       </div>
 
       <!-- 输入框 -->
@@ -126,7 +89,7 @@
           <el-button circle size="small" title="上传附件"><el-icon><UploadFilled /></el-icon></el-button>
         </el-upload>
         <el-input v-model="input" type="textarea" :rows="2"
-                  :placeholder="mode==='multi' ? `同一问题将同时发送给 ${panes.length} 个模型，Enter 发送` : '输入消息，Enter 发送'"
+                  :placeholder="mode==='multi' ? `同一问题将同时发送给 ${multiModels.length} 个模型，Enter 发送` : '输入消息，Enter 发送'"
                   @keydown.enter.exact.prevent="send(input)" resize="none" />
         <el-button type="primary" @click="send(input)" :loading="thinking">发送</el-button>
       </div>
@@ -138,77 +101,55 @@
 /**
  * AI 对话页
  * - 单模型：经典消息流
- * - 多模型对比：宫格工作台（2/4/6 宫格），每个模型一个独立区块，
- *   区块可最大化全屏聚焦、可还原到宫格原位（v3.1.0 新增）
+ * - 多模型对比：宫格工作台（共享组件 ModelCompareGrid）
+ *   2/4/6 宫格切换，区块可最大化/还原（v3.1.0 新增）
  */
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
-import { Plus, UploadFilled, Delete, ZoomIn, ZoomOut } from '@element-plus/icons-vue'
+import { Plus, UploadFilled, Delete } from '@element-plus/icons-vue'
 import { apiGet, apiDelete } from '../api.js'
 import { marked } from 'marked'
 import { ElMessage } from 'element-plus'
+import ModelCompareGrid from '../components/ModelCompareGrid.vue'
 
 const route = useRoute()
 const input = ref(''), mode = ref('single'), model = ref('deepseek'), multiModels = ref(['deepseek','qwen'])
 const activeSkill = ref(''), kbId = ref(''), thinking = ref(false)
 const msgs = ref([]), convs = ref([]), activeConv = ref('new')
 const skills = ref([]), kbs = ref([])
-const modelList = ['deepseek','qwen','zhipu','kimi','minimax','doubao']
+const modelList = ['deepseek','qwen','qwen-plus','qwen-max','glm-4','kimi','minimax']
 const bodyRef = ref(null)
 
-// ---- 多模型宫格状态 ----
-const gridMode = ref('grid4')                    // 当前宫格布局
-const gridModes = [                              // 宫格定义：列数 × 区块数
-  { key:'grid2', label:'2宫格', cols:2, rows:1, cells:2 },
-  { key:'grid4', label:'4宫格', cols:2, rows:2, cells:4 },
-  { key:'grid6', label:'6宫格', cols:3, rows:2, cells:6 },
+// ---- 多模型宫格 ----
+const gridMode = ref('grid4')
+const gridModes = [
+  { key:'grid2', label:'2宫格', cols:2, cells:2 },
+  { key:'grid4', label:'4宫格', cols:2, cells:4 },
+  { key:'grid6', label:'6宫格', cols:3, cells:6 },
 ]
-const panes = ref([])                            // [{model, msgs:[], streaming:false}]
-const maximized = ref(null)                      // 被最大化的区块下标，null=宫格态
-const paneRefs = ref({})                         // 每个区块的滚动容器
-
-// 宫格样式：按布局决定行列
-const gridStyle = computed(() => {
-  const g = gridModes.find(x => x.key === gridMode.value)
-  return {
-    'grid-template-columns': `repeat(${g.cols}, 1fr)`,
-    'grid-template-rows': `repeat(${g.rows}, 1fr)`,
-    'grid-auto-rows': '1fr',
-  }
-})
+const gridRef = ref(null)
+const multiStarted = ref(false)          // 宫格会话是否已开始（控制空状态）
 
 const showEmpty = computed(() =>
-  mode.value === 'single' ? msgs.value.length === 0 : panes.value.every(p => p.msgs.length === 0)
+  mode.value === 'single' ? msgs.value.length === 0 : !multiStarted.value
 )
 
-const MODEL_META = {
-  deepseek: { label:'DeepSeek', color:'#4D6BFE' },
-  qwen:     { label:'通义千问', color:'#615CED' },
-  zhipu:    { label:'智谱GLM', color:'#3B9CFF' },
-  kimi:     { label:'Kimi', color:'#111827' },
-  minimax:  { label:'MiniMax', color:'#F59E0B' },
-  doubao:   { label:'豆包', color:'#22C55E' },
+const MODEL_LABELS = {
+  deepseek:'DeepSeek', qwen:'通义千问', 'qwen-plus':'Qwen Plus', 'qwen-max':'Qwen Max',
+  'glm-4':'智谱GLM', kimi:'Kimi', minimax:'MiniMax',
 }
-const modelLabel = m => MODEL_META[m]?.label || m
-const modelColor = m => MODEL_META[m]?.color || '#1677ff'
+const modelLabel = m => MODEL_LABELS[m] || m
 
 const quickPrompts = ['党建课题设计','干部培训方案','论文润色','船舶行业动态']
 
-// 多模型选择变化 → 同步宫格区块（保留已有区块的对话）
-watch(multiModels, (list) => {
-  panes.value = list.map(m => {
-    const old = panes.value.find(p => p.model === m)
-    return old || { model: m, msgs: [], streaming: false }
-  })
-  if (maximized.value !== null && maximized.value >= panes.value.length) maximized.value = null
-}, { immediate: true })
-
-// 切回单模型时退出最大化
-watch(mode, () => { maximized.value = null })
-
-function setPaneRef(el, i) { if (el) paneRefs.value[i] = el }
-function scrollPane(i) {
-  nextTick(() => { const el = paneRefs.value[i]; if (el) el.scrollTop = el.scrollHeight })
+// 宫格附加请求字段（技能/知识库外挂）
+const chatExtra = () => ({ skill_id: activeSkill.value || '', kb_id: kbId.value || '' })
+// 宫格首发请求建立会话后回传 conversation_id
+function onGridMeta(id) {
+  if (activeConv.value === 'new') {
+    activeConv.value = id
+    refreshConvs()
+  }
 }
 
 onMounted(async () => {
@@ -223,7 +164,16 @@ onMounted(async () => {
   if (skillId) activeSkill.value = skillId
 })
 
-function newConv() { activeConv.value = 'new'; msgs.value = []; panes.value.forEach(p => p.msgs = []) }
+async function refreshConvs() {
+  const cdata = await apiGet('/api/chat/conversations')
+  if (cdata) convs.value = cdata.map(c => ({id:c.id,title:c.title||c.name||'对话',time:c.created_at?.slice(0,10)||'刚刚'}))
+}
+
+function newConv() {
+  activeConv.value = 'new'; msgs.value = []
+  multiStarted.value = false
+  gridRef.value?.clear()
+}
 function switchConv(c) {
   activeConv.value = c.id
   loadMessages(c.id)   // 历史消息在单模型流中回放；宫格区块为本次会话状态
@@ -241,31 +191,24 @@ async function loadMessages(convId) {
 async function send(text) {
   const t = typeof text === 'string' ? text : input.value
   if (!t || !t.trim() || thinking.value) return
-  if (mode.value === 'multi' && panes.value.length === 0) {
+  if (mode.value === 'multi' && multiModels.value.length === 0) {
     ElMessage.warning('请先选择至少一个对比模型'); return
   }
-  input.value = ''; thinking.value = true
+  input.value = ''
 
   if (mode.value === 'single') {
+    thinking.value = true
     msgs.value.push({ role: 'user', content: t.trim() })
     msgs.value.push({ role: 'assistant', content: '' })
     await nextTick(); scrollBottom()
     await streamChat(t.trim(), msgs.value[msgs.value.length-1], model.value)
+    thinking.value = false
     await nextTick(); scrollBottom()
   } else {
-    // 宫格模式：同一问题并行发给每个区块
-    panes.value.forEach(p => {
-      p.msgs.push({ role: 'user', content: t.trim() })
-      p.msgs.push({ role: 'assistant', content: '' })
-      p.streaming = true
-    })
-    panes.value.forEach((_, i) => scrollPane(i))
-    await Promise.all(panes.value.map((p, i) =>
-      streamChat(t.trim(), p.msgs[p.msgs.length-1], p.model)
-        .finally(() => { p.streaming = false; scrollPane(i) })
-    ))
+    // 宫格模式：交给共享组件并行广播（busy 事件驱动 thinking）
+    multiStarted.value = true
+    await gridRef.value?.broadcast(t.trim())
   }
-  thinking.value = false
 }
 
 async function streamChat(query, target, mdl) {
@@ -298,8 +241,7 @@ async function streamChat(query, target, mdl) {
             const json = JSON.parse(data)
             if (json.conversation_id && activeConv.value === 'new') {
               activeConv.value = json.conversation_id
-              const cdata = await apiGet('/api/chat/conversations')
-              if (cdata) convs.value = cdata.map(c => ({id:c.id,title:c.title||c.name||'对话',time:c.created_at?.slice(0,10)||'刚刚'}))
+              refreshConvs()
             }
             if (json.content) {
               fullContent += json.content
@@ -361,10 +303,12 @@ async function handleUpload(file) {
 
 .chat-main { flex:1; display:flex; flex-direction:column; min-width:0; }
 .chat-tools { padding:8px 14px; background:#fff; border-bottom:1px solid #ebedf0; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-.chat-body { flex:1; overflow-y:auto; padding:16px 20px; min-height:0; }
+.chat-body { flex:1; overflow-y:auto; padding:16px 20px; min-height:0; display:flex; flex-direction:column; }
+.chat-body > * { flex:0 0 auto; }
+.chat-body > .mcmp-wrap { flex:1 1 auto; min-height:0; }
 
 /* ===== 空状态 ===== */
-.empty-state { text-align:center; padding:56px 20px; color:#9ca3af; }
+.empty-state { text-align:center; padding:56px 20px; color:#9ca3af; margin:auto; }
 .empty-logo { font-size:44px; margin-bottom:8px; }
 .empty-state h3 { margin:0 0 6px; color:#374151; font-size:18px; }
 .empty-state p { margin:0 0 18px; font-size:13px; }
@@ -397,18 +341,6 @@ async function handleUpload(file) {
 .msg-text :deep(code) { background:#eef0f3; padding:1px 4px; border-radius:4px; font-size:12px; }
 .msg-text :deep(pre code) { background:transparent; padding:0; }
 .msg.user .msg-text :deep(code) { background:rgba(255,255,255,.2); }
-
-/* ===== 多模型宫格 ===== */
-.pane-grid { display:grid; gap:10px; height:100%; }
-.pane { background:#fff; border:1px solid #e8eaee; border-radius:12px; display:flex; flex-direction:column; min-height:0; overflow:hidden; box-shadow:0 1px 3px rgba(16,24,40,.05); }
-.pane-max { height:100%; }
-.pane-header { display:flex; align-items:center; gap:7px; padding:8px 12px; border-bottom:1px solid #f0f1f4; background:#fafbfc; }
-.model-dot { width:8px; height:8px; border-radius:50%; }
-.pane-model-name { font-size:12px; font-weight:600; color:#374151; flex:1; }
-.pane-status { font-size:11px; color:#1677ff; }
-.pane-body { flex:1; overflow-y:auto; padding:12px; min-height:0; }
-.pane-empty { text-align:center; color:#c0c4cc; font-size:12px; padding:28px 8px; }
-.pane-body .msg-text { max-width:94%; font-size:12.5px; }
 
 /* ===== 输入区 ===== */
 .chat-input { padding:10px 14px; background:#fff; border-top:1px solid #ebedf0; display:flex; gap:8px; align-items:center; }

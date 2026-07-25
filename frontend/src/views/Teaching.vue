@@ -42,47 +42,56 @@
           <el-radio-button value="multi">多模型</el-radio-button>
         </el-radio-group>
         <template v-if="mode==='single'">
-          <el-select v-model="model" size="small" style="width:110px">
+          <el-select v-model="model" size="small" style="width:130px">
             <el-option v-for="m in models" :key="m.value" :label="m.label" :value="m.value" />
           </el-select>
         </template>
         <template v-else>
-          <el-select v-model="multiModels" size="small" style="width:200px" multiple collapse-tags>
+          <el-select v-model="multiModels" size="small" style="width:200px" multiple collapse-tags :multiple-limit="6">
             <el-option v-for="m in models" :key="m.value" :label="m.label" :value="m.value" />
           </el-select>
+          <!-- 宫格布局切换：2/4/6 宫格 -->
+          <div class="grid-switch">
+            <button v-for="g in gridModes" :key="g.key"
+                    :class="['grid-btn',{active:gridMode===g.key}]"
+                    :title="g.label" @click="gridMode=g.key">
+              <span class="grid-icon" :data-cols="g.cols"><i v-for="n in g.cells" :key="n"></i></span>
+              {{ g.label }}
+            </button>
+          </div>
         </template>
-        <el-select v-model="kbId" size="small" style="width:140px;margin-left:4px" clearable placeholder="知识库">
+        <el-select v-model="kbId" size="small" style="width:130px;margin-left:4px" clearable placeholder="知识库">
           <el-option v-for="kb in kbList" :key="kb.id" :label="kb.name" :value="kb.id">
             <span>{{ kb.name }}</span><span style="color:#bbb;font-size:10px;margin-left:6px">{{ kb.count }}篇</span>
           </el-option>
         </el-select>
         <el-button size="small" :icon="Plus" @click="newConv" circle />
-        <el-button size="small" @click="saveResult" :disabled="msgs.length===0" style="margin-left:auto">保存</el-button>
+        <el-button size="small" @click="saveResult" :disabled="mode==='single' ? msgs.length===0 : !multiStarted" style="margin-left:auto">保存</el-button>
       </div>
 
       <!-- 对话区 -->
       <div class="chat-body" ref="bodyRef">
-        <div v-if="msgs.length===0" class="empty">
+        <div v-if="showEmpty" class="empty">
           <p>选择左侧教学功能或直接输入教学需求</p>
+          <p v-if="mode==='multi'" style="font-size:12px;color:#b6bbc4">多模型模式：同一问题同屏对比作答，区块可最大化聚焦</p>
           <div class="quick-btns">
             <el-button v-for="q in quickBtns" :key="q.id" size="small" round @click="input=q.prompt;doSend()">{{ q.label }}</el-button>
           </div>
         </div>
-        <div v-for="(m,i) in msgs" :key="i">
-          <template v-if="m.results">
-            <div class="msg user"><div class="msg-text">{{ m.content }}</div></div>
-            <div class="multi-grid">
-              <div v-for="r in m.results" :key="r.model" class="multi-cell">
-                <div class="multi-label">{{ r.model }}</div>
-                <div class="msg-text" v-html="render(r.content)"></div>
-              </div>
-            </div>
-          </template>
-          <div v-else :class="['msg',m.role]">
+
+        <!-- 单模型：消息流 -->
+        <template v-if="mode==='single'">
+          <div v-for="(m,i) in msgs" :key="i" :class="['msg',m.role]">
             <div class="msg-text" v-html="render(m.content)"></div>
           </div>
-        </div>
-        <div v-if="thinking" class="msg assistant"><div class="msg-text">...</div></div>
+          <div v-if="thinking" class="msg assistant"><div class="msg-text thinking-dots">思考中…</div></div>
+        </template>
+
+        <!-- 多模型：宫格工作台（共享组件） -->
+        <ModelCompareGrid v-else ref="gridRef"
+          :models="multiModels" :grid-mode="gridMode"
+          :get-conv-id="() => convId" :extra-fn="teachExtra"
+          @meta="onGridMeta" @busy="v => thinking = v" />
       </div>
 
       <!-- 输入区 -->
@@ -94,7 +103,8 @@
           <el-upload :show-file-list="false" :before-upload="handleUpload" accept=".pdf,.docx,.txt,.md">
             <el-button circle size="small"><el-icon><UploadFilled /></el-icon></el-button>
           </el-upload>
-          <el-input v-model="input" type="textarea" :rows="3" placeholder="输入教学需求，Enter 发送"
+          <el-input v-model="input" type="textarea" :rows="3"
+            :placeholder="mode==='multi' ? `同一问题将同时发送给 ${multiModels.length} 个模型，Enter 发送` : '输入教学需求，Enter 发送'"
             @keydown.enter.exact.prevent="doSend" resize="none" />
           <el-button type="primary" @click="doSend" :loading="thinking" size="small">发送</el-button>
         </div>
@@ -116,12 +126,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+/**
+ * 教学工作台
+ * - 单模型：消息流 + 教学功能快捷入口
+ * - 多模型对比：宫格工作台（共享组件 ModelCompareGrid，v3.1.0）
+ * 修复：apiPost 未导入导致"整理成技能"必崩；多模型会话 id 未回传导致每次新建多个会话
+ */
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { Plus, UploadFilled, EditPen, Document, DataBoard, Notebook, MagicStick, MoreFilled, Top, Download, Delete } from '@element-plus/icons-vue'
 import * as Icons from '@element-plus/icons-vue'
-import { apiGet, apiDelete } from '../api.js'
+import { apiGet, apiDelete, apiPost } from '../api.js'
 import { marked } from 'marked'
 import { ElMessage } from 'element-plus'
+import ModelCompareGrid from '../components/ModelCompareGrid.vue'
 
 const iconMap = { ...Icons }
 
@@ -152,6 +169,25 @@ const models = [
 ]
 const bodyRef = ref(null)
 
+// ---- 多模型宫格 ----
+const gridMode = ref('grid4')
+const gridModes = [
+  { key:'grid2', label:'2宫格', cols:2, cells:2 },
+  { key:'grid4', label:'4宫格', cols:2, cells:4 },
+  { key:'grid6', label:'6宫格', cols:3, cells:6 },
+]
+const gridRef = ref(null)
+const multiStarted = ref(false)
+
+const showEmpty = computed(() =>
+  mode.value === 'single' ? msgs.value.length === 0 : !multiStarted.value
+)
+
+const teachExtra = () => ({ skill_id: skillId.value || '' })
+function onGridMeta(id) {
+  if (convId.value === 'new') { convId.value = id; refreshConvs() }
+}
+
 onMounted(async () => {
   const [s, c, k] = await Promise.all([apiGet('/api/skills'), apiGet('/api/chat/conversations'), apiGet('/api/dify/datasets/list')])
   if (s) skills.value = s
@@ -159,7 +195,11 @@ onMounted(async () => {
   if (k) kbList.value = k
 })
 
-function newConv() { convId.value = 'new'; msgs.value = [] }
+function newConv() {
+  convId.value = 'new'; msgs.value = []
+  multiStarted.value = false
+  gridRef.value?.clear()
+}
 
 function useFunc(f) {
   funcId.value = f.id
@@ -208,16 +248,19 @@ async function saveResult() {
 async function doSend() {
   const t = input.value.trim()
   if (!t || thinking.value) return
-  input.value = ''; thinking.value = true; funcId.value = ''
-  msgs.value.push({ role: 'user', content: t })
-  await nextTick(); scrollBottom()
-
-  const token = localStorage.getItem('csic_token')
-  const API_BASE = location.port === '5173' ? 'http://localhost:8000' : ''
+  if (mode.value === 'multi' && multiModels.value.length === 0) {
+    ElMessage.warning('请先选择至少一个对比模型'); return
+  }
+  input.value = ''; funcId.value = ''
 
   if (mode.value === 'single') {
+    thinking.value = true
+    msgs.value.push({ role: 'user', content: t })
+    await nextTick(); scrollBottom()
     msgs.value.push({ role: 'assistant', content: '' })
     const last = msgs.value[msgs.value.length - 1]
+    const token = localStorage.getItem('csic_token')
+    const API_BASE = location.port === '5173' ? 'http://localhost:8000' : ''
     try {
       const resp = await fetch(`${API_BASE}/api/chat/dify-chat`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -237,32 +280,12 @@ async function doSend() {
         }
       }
     } catch (e) { last.content = `[错误] ${e.message}` }
+    thinking.value = false; await nextTick(); scrollBottom()
   } else {
-    // 多模型对比
-    const results = multiModels.value.map(m => ({ model: m, content: '' }))
-    msgs.value.push({ role: 'assistant', results })
-    const last = msgs.value[msgs.value.length - 1]
-    await Promise.all(multiModels.value.map(async (m, i) => {
-      try {
-        const resp = await fetch(`${API_BASE}/api/chat/dify-chat`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ query: t, model: m, skill_id: skillId.value || '', conversation_id: convId.value })
-        })
-        const reader = resp.body.getReader(); const dec = new TextDecoder()
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          for (const line of dec.decode(value,{stream:true}).split('\n')) {
-            if (line.startsWith('data: ')) {
-              const d = line.slice(6); if (d === '[DONE]') continue
-              try { const j = JSON.parse(d); if (j.content) last.results[i].content += j.content } catch {}
-            }
-          }
-        }
-      } catch (e) { last.results[i].content = `[错误] ${e.message}` }
-    }))
+    // 宫格模式：共享组件并行广播（busy 事件驱动 thinking）
+    multiStarted.value = true
+    await gridRef.value?.broadcast(t)
   }
-  thinking.value = false; await nextTick(); scrollBottom()
 }
 
 async function histAction(cmd, c) {
@@ -340,52 +363,62 @@ async function handleUpload(file) {
 </script>
 
 <style scoped>
-.teach-layout { display:flex; height:calc(100vh - 160px); background:#fff; margin:0 8px; }
-.teach-panel { width:170px; min-width:170px; background:#f8f9fb; border-right:1px solid #e5e7eb; padding:10px 8px; display:flex; flex-direction:column; }
+.teach-layout { display:flex; height:calc(100vh - 160px); background:#f7f8fa; margin:0 8px; }
+.teach-panel { width:170px; min-width:170px; background:#fff; border-right:1px solid #ebedf0; padding:10px 8px; display:flex; flex-direction:column; }
 .new-btn { width:100%; margin-bottom:4px; }
 .panel-title { font-size:10px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:1px; padding:0 4px 6px; }
 .func-list { display:flex; flex-direction:column; gap:3px; margin-bottom:8px; }
-.panel-divider { height:1px; background:#e5e7eb; margin:8px 0; }
+.panel-divider { height:1px; background:#ebedf0; margin:8px 0; }
 .hist-list { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:2px; }
-.hist-item { padding:5px 8px; border-radius:5px; cursor:pointer; font-size:12px; display:flex; justify-content:space-between; }
-.hist-item:hover,.hist-item.active { background:#f0f5ff; }
+.hist-item { padding:6px 8px; border-radius:6px; cursor:pointer; font-size:12px; display:flex; justify-content:space-between; transition:background .15s; }
+.hist-item:hover { background:#f4f6fb; }
+.hist-item.active { background:#eaf1ff; }
 .hist-title { color:#374151; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
-.hist-time { color:#bbb; font-size:10px; margin-left:4px; flex-shrink:0; }
-.func-btn { display:flex; align-items:center; gap:6px; padding:7px 8px; border-radius:6px; cursor:pointer; font-size:12px; color:#374151; }
-.func-btn:hover { background:#e8ecf1; }
-.func-btn.active { background:#1677ff12; color:#1677ff; font-weight:600; }
+.func-btn { display:flex; align-items:center; gap:6px; padding:7px 8px; border-radius:6px; cursor:pointer; font-size:12px; color:#374151; transition:background .15s; }
+.func-btn:hover { background:#f4f6fb; }
+.func-btn.active { background:#eaf1ff; color:#1677ff; font-weight:600; }
 
 .chat-main { flex:1; display:flex; flex-direction:column; min-width:0; }
-.chat-tools { padding:5px 10px; border-bottom:1px solid #e5e7eb; display:flex; gap:6px; align-items:center; }
-.chat-body { flex:1; overflow-y:auto; padding:10px 20px; }
-.empty { text-align:center; padding:50px 20px; color:#9ca3af; }
+.chat-tools { padding:6px 12px; background:#fff; border-bottom:1px solid #ebedf0; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.chat-body { flex:1; overflow-y:auto; padding:14px 18px; min-height:0; display:flex; flex-direction:column; }
+.chat-body > * { flex:0 0 auto; }
+.chat-body > .mcmp-wrap { flex:1 1 auto; min-height:0; }
+.empty { text-align:center; padding:50px 20px; color:#9ca3af; margin:auto; }
 .quick-btns { margin-top:10px; display:flex; flex-wrap:wrap; gap:6px; justify-content:center; }
-.msg { margin-bottom:10px; }
-.msg.user { text-align:right; }
-.msg-text { display:inline-block; max-width:80%; padding:7px 12px; border-radius:10px; font-size:13px; line-height:1.7; word-break:break-word; }
-.msg.user .msg-text { background:#1677ff; color:#fff; }
-.msg.assistant .msg-text { background:#f3f4f6; color:#1f2937; }
-.msg-text :deep(h2),.msg-text :deep(h3) { margin:4px 0 2px; font-size:14px; }
-.msg-text :deep(p) { margin:3px 0; }
-.msg-text :deep(ul),.msg-text :deep(ol) { margin:3px 0; padding-left:16px; }
-.msg-text :deep(pre) { background:#1e293b;color:#e2e8f0;padding:5px 8px;border-radius:5px;overflow-x:auto;font-size:11px; }
-.msg-text :deep(code) { background:#e5e7eb;padding:1px 3px;border-radius:3px;font-size:11px; }
+.msg { margin-bottom:12px; display:flex; }
+.msg.user { flex-direction:row-reverse; }
+.msg-text { display:inline-block; max-width:80%; padding:9px 13px; border-radius:12px; font-size:13px; line-height:1.7; word-break:break-word; }
+.msg.user .msg-text { background:#1677ff; color:#fff; border-top-right-radius:4px; }
+.msg.assistant .msg-text { background:#fff; color:#1f2937; border:1px solid #eef0f3; border-top-left-radius:4px; box-shadow:0 1px 2px rgba(16,24,40,.04); }
+.thinking-dots { color:#9ca3af; }
+.msg-text :deep(h2),.msg-text :deep(h3) { margin:6px 0 3px; font-size:14px; }
+.msg-text :deep(p) { margin:0 0 6px; } .msg-text :deep(p:last-child) { margin-bottom:0; }
+.msg-text :deep(ul),.msg-text :deep(ol) { margin:4px 0; padding-left:16px; }
+.msg-text :deep(pre) { background:#1e293b;color:#e2e8f0;padding:6px 10px;border-radius:8px;overflow-x:auto;font-size:11.5px; }
+.msg-text :deep(code) { background:#eef0f3;padding:1px 4px;border-radius:4px;font-size:11.5px; }
+.msg-text :deep(pre code) { background:transparent; padding:0; }
 
-.chat-input { padding:8px 12px; border-top:1px solid #e5e7eb; }
+/* ===== 宫格切换按钮（与 Chat 页一致） ===== */
+.grid-switch { display:flex; gap:4px; background:#f3f4f6; padding:3px; border-radius:8px; }
+.grid-btn { display:flex; align-items:center; gap:5px; border:none; background:transparent; padding:4px 10px; border-radius:6px; font-size:12px; color:#6b7280; cursor:pointer; transition:all .15s; }
+.grid-btn:hover { color:#1677ff; }
+.grid-btn.active { background:#fff; color:#1677ff; font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+.grid-icon { display:grid; gap:1.5px; width:16px; height:12px; }
+.grid-icon[data-cols="2"] { grid-template-columns:repeat(2,1fr); }
+.grid-icon[data-cols="3"] { grid-template-columns:repeat(3,1fr); }
+.grid-icon i { background:currentColor; border-radius:1px; opacity:.75; }
+
+.chat-input { padding:8px 12px; background:#fff; border-top:1px solid #ebedf0; }
 .skill-badge { padding:4px 0; }
 .input-row { display:flex; gap:6px; align-items:center; }
-.chat-input :deep(.el-textarea__inner) { border-radius:8px; font-size:13px; padding:6px 8px; }
+.chat-input :deep(.el-textarea__inner) { border-radius:10px; font-size:13px; padding:8px 10px; }
 
-.skill-panel { width:160px; min-width:160px; background:#f8f9fb; border-left:1px solid #e5e7eb; padding:10px 8px; overflow:hidden; display:flex; flex-direction:column; }
+.skill-panel { width:160px; min-width:160px; background:#fff; border-left:1px solid #ebedf0; padding:10px 8px; overflow:hidden; display:flex; flex-direction:column; }
 .skill-list { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:3px; }
-.skill-btn { display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:6px; cursor:pointer; font-size:12px; color:#374151; }
-.skill-btn:hover { background:#e8ecf1; }
-.skill-btn.active { background:#1677ff12; color:#1677ff; font-weight:600; }
+.skill-btn { display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:6px; cursor:pointer; font-size:12px; color:#374151; transition:background .15s; }
+.skill-btn:hover { background:#f4f6fb; }
+.skill-btn.active { background:#eaf1ff; color:#1677ff; font-weight:600; }
 .skill-btn span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
-.multi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:8px; margin-bottom:12px; }
-.multi-cell { border:1px solid #e5e7eb; border-radius:8px; padding:8px; }
-.multi-label { font-size:11px; color:#1677ff; font-weight:600; margin-bottom:4px; }
 
 @media (max-width:768px) { .teach-panel,.skill-panel { display:none; } .teach-layout { margin:0; } }
 </style>
