@@ -183,22 +183,50 @@ async function pollResult(id) {
   setTimeout(poll, 2000)
 }
 
+// 导出：纯前端生成 Markdown 下载，不依赖后端 /api/video/export（该路由不存在）
 function exportResult() {
   if (!result.value) return
-  apiPost('/api/video/export', { id: result.value.id }).then(() => {
-    ElMessage.success('正在导出文本')
-  }).catch(() => {
-    ElMessage.success('正在导出文本')
-  })
+  try {
+    const r = result.value
+    let md = '# 视频解析结果\n\n'
+    if (r.summary) md += `## AI 摘要\n\n${r.summary}\n\n`
+    if (r.transcript) md += `## 逐字稿\n\n${r.transcript}\n\n`
+    if (r.flashcards && r.flashcards.length) {
+      md += '## 记忆卡片\n\n'
+      r.flashcards.forEach((c, i) => {
+        md += `${i + 1}. **${c.question || c.front || ''}**\n   ${c.answer || c.back || ''}\n\n`
+      })
+    }
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `视频解析_${new Date().toISOString().slice(0, 10)}.md`
+    a.click()
+    URL.revokeObjectURL(a.href)
+    ElMessage.success('已导出 Markdown 文件')
+  } catch (e) {
+    ElMessage.error('导出失败：' + (e.message || '未知错误'))
+  }
 }
 
-function shareResult() {
+// 分享：复制当前页面链接到剪贴板，不依赖后端 /api/video/share（该路由不存在）
+async function shareResult() {
   if (!result.value) return
-  apiPost('/api/video/share', { id: result.value.id }).then(() => {
-    ElMessage.success('分享链接已复制')
-  }).catch(() => {
-    ElMessage.success('分享链接已复制')
-  })
+  const link = window.location.href
+  try {
+    await navigator.clipboard.writeText(link)
+    ElMessage.success('页面链接已复制到剪贴板')
+  } catch {
+    // 剪贴板 API 不可用（非 HTTPS 等场景）时降级为选中文本
+    const ta = document.createElement('textarea')
+    ta.value = link
+    document.body.appendChild(ta)
+    ta.select()
+    const ok = document.execCommand('copy')
+    document.body.removeChild(ta)
+    if (ok) ElMessage.success('页面链接已复制到剪贴板')
+    else ElMessage.warning('复制失败，请手动复制地址栏链接')
+  }
 }
 
 function renderSimpleMindmap(container, tree) {

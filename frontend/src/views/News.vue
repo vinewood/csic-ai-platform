@@ -188,7 +188,9 @@ async function loadDigest() {
       const d = selectedDate.value
       params.date = typeof d === 'string' ? d : d.toISOString().split('T')[0]
     }
-    const res = await apiGet('/api/rss/articles', { params })
+    // apiGet(path) 只接收一个参数，日期筛选需手动拼 query string，否则参数不会发出
+    const qs = params.date ? `?date=${encodeURIComponent(params.date)}` : ''
+    const res = await apiGet('/api/rss/articles' + qs)
     articles.value = Array.isArray(res?.articles) ? res.articles : (Array.isArray(res) ? res : [])
   } catch { articles.value = [] }
 }
