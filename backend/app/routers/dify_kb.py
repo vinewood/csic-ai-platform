@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 import httpx
 from ..auth import get_current_user
 
-router = APIRouter(prefix="/api/dify", tags=["Dify集成"])
+router = APIRouter(prefix="/api/dify", tags=["Dify集成"],
+    dependencies=[Depends(get_current_user)])  # v3.1.2 路由级鉴权
 
 DIFY_CONSOLE = "http://127.0.0.1:5001/console/api"
 DIFY_LOGIN = {"email": "admin@csic.cn", "password": "***REMOVED-PASSWORD***"}

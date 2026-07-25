@@ -7,7 +7,8 @@ from typing import Optional, List
 from ..auth import get_current_user
 from ..config import get_api_config
 
-router = APIRouter(prefix="/api/teaching", tags=["教学"])
+router = APIRouter(prefix="/api/teaching", tags=["教学"],
+    dependencies=[Depends(get_current_user)])  # v3.1.2 路由级鉴权
 
 # 教学请求模型
 class TeachingRequest(BaseModel):

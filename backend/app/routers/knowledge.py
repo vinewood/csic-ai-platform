@@ -8,8 +8,10 @@ from ..models import KnowledgeBase, KnowledgeDoc
 from ..schemas import MessageResponse
 from ..config import UPLOAD_DIR
 import os, uuid, shutil
+from ..auth import get_current_user
 
-router = APIRouter(prefix="/api/knowledge", tags=["知识库"])
+router = APIRouter(prefix="/api/knowledge", tags=["知识库"],
+    dependencies=[Depends(get_current_user)])  # v3.1.2 路由级鉴权
 
 
 # ── 知识库 CRUD ──────────────────────────────────────────────

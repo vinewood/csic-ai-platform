@@ -8,8 +8,10 @@ from ..database import get_db
 from ..models import EmailConfig
 from ..schemas import EmailConfigOut, EmailConfigUpdate, MessageResponse
 from ..services.email_service import send_test_email
+from ..auth import get_admin_user
 
-router = APIRouter(prefix="/api/email", tags=["邮箱配置"])
+router = APIRouter(prefix="/api/email", tags=["邮箱配置"],
+    dependencies=[Depends(get_admin_user)])  # v3.1.2 路由级鉴权
 
 
 @router.get("/config", response_model=EmailConfigOut)

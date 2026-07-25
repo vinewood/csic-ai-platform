@@ -10,7 +10,8 @@ from ..schemas import RssSourceCreate, RssSourceOut, MessageResponse
 from ..auth import get_current_user
 from ..services.rss_service import fetch_rss, RSSHUB_URL, fetch_from_rsshub
 
-router = APIRouter(prefix="/api/rss", tags=["RSS管理"])
+router = APIRouter(prefix="/api/rss", tags=["RSS管理"],
+    dependencies=[Depends(get_current_user)])  # v3.1.2 路由级鉴权
 
 
 @router.get("/sources", response_model=list[RssSourceOut])

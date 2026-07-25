@@ -11,7 +11,8 @@ from ..models import Skill
 from ..schemas import MessageResponse
 from ..auth import get_current_user
 
-router = APIRouter(prefix="/api/skills", tags=["技能"])
+router = APIRouter(prefix="/api/skills", tags=["技能"],
+    dependencies=[Depends(get_current_user)])  # v3.1.2 路由级鉴权
 
 
 # ---- 请求/响应模型 ----

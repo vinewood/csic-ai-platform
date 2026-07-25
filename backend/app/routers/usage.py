@@ -6,8 +6,10 @@ from sqlalchemy import select, func
 
 from ..database import get_db
 from ..models import User, Conversation, Message
+from ..auth import get_admin_user
 
-router = APIRouter(prefix="/api/usage", tags=["用量统计"])
+router = APIRouter(prefix="/api/usage", tags=["用量统计"],
+    dependencies=[Depends(get_admin_user)])  # v3.1.2 路由级鉴权
 
 
 @router.get("/stats")

@@ -8,7 +8,8 @@ from fastapi.responses import FileResponse
 from ..config import UPLOAD_DIR
 from ..auth import get_current_user
 
-router = APIRouter(prefix="/api/files", tags=["文件"])
+router = APIRouter(prefix="/api/files", tags=["文件"],
+    dependencies=[Depends(get_current_user)])  # v3.1.2 路由级鉴权
 
 
 @router.post("/upload")
