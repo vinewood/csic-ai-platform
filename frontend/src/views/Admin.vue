@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div class="csic-hero" style="background-image:url(https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&q=80);">
+    <div class="csic-hero csic-hero--admin">
       <div class="hero-content">
         <h2>系统管理</h2>
         <p>用户 · 模型 · 用量 · RSS · 邮箱 · API</p>

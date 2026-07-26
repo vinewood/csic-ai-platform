@@ -217,3 +217,28 @@ body {
 
 /* 加载骨架屏颜色统一 */
 .el-skeleton { --el-skeleton-color: #f2f3f5; --el-skeleton-to-color: #e8eaee; }
+
+/* ===== v3.2.3 全面优化：纯 CSS 主题 hero（替代 Unsplash 外链，零外部依赖） ===== */
+/* 各页 hero 底层渐变 + 细网点纹理，上层仍走 .csic-hero::before 品牌深色罩 */
+.csic-hero--video {
+  background:
+    radial-gradient(circle at 82% 18%, rgba(34, 211, 238, 0.35) 0%, transparent 46%),
+    radial-gradient(circle at 12% 85%, rgba(20, 120, 140, 0.5) 0%, transparent 52%),
+    repeating-linear-gradient(45deg, rgba(255,255,255,0.025) 0 2px, transparent 2px 14px),
+    linear-gradient(135deg, #08222e 0%, #0b3d4a 55%, #0d5a5e 100%);
+}
+.csic-hero--skills {
+  background:
+    radial-gradient(circle at 78% 22%, rgba(129, 140, 248, 0.4) 0%, transparent 46%),
+    radial-gradient(circle at 15% 80%, rgba(67, 56, 202, 0.45) 0%, transparent 55%),
+    radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+    linear-gradient(135deg, #141b3d 0%, #2b2a6b 60%, #3b2f8f 100%);
+  background-size: auto, auto, 22px 22px, auto;
+}
+.csic-hero--admin {
+  background:
+    radial-gradient(circle at 80% 20%, rgba(96, 165, 250, 0.32) 0%, transparent 48%),
+    radial-gradient(circle at 10% 88%, rgba(51, 65, 85, 0.6) 0%, transparent 52%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 26px),
+    linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #273549 100%);
+}

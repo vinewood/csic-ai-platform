@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div class="csic-hero" style="background-image:url(https://images.unsplash.com/photo-1574375927938-d5a98e922061?w=1200&q=80);">
+    <div class="csic-hero csic-hero--video">
       <div class="hero-content">
         <h2>视频分析</h2>
         <p>上传 · 转录 · 摘要 · 知识闪卡</p>

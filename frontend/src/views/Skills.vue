@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div class="csic-hero" style="background-image:url(https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=1200&q=80);">
+    <div class="csic-hero csic-hero--skills">
       <div class="hero-content"><h2>AI 技能中心</h2><p>预置AI技能 · 自定义技能 · 收藏调用 · {{ skills.length }} 个技能</p></div>
     </div>
 

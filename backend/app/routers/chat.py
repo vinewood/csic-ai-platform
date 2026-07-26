@@ -1,4 +1,4 @@
-"""对话路由：优先走 Dify AI 对话 + 知识库增强，fallback 直连 LLM"""
+"""对话路由：直连 LLM + 知识库增强 + 对话历史持久化"""
 
 import json
 from fastapi import APIRouter, Depends, HTTPException
@@ -6,7 +6,6 @@ from fastapi.responses import StreamingResponse
 
 from ..schemas import ChatRequest
 from ..auth import get_current_user
-from ..services.integrations import DifyService
 from ..services.dify_service import chat_stream as direct_chat, delete_conversation
 
 router = APIRouter(prefix="/api/chat", tags=["对话"])
@@ -14,35 +13,20 @@ router = APIRouter(prefix="/api/chat", tags=["对话"])
 
 @router.post("/stream")
 async def chat_stream_endpoint(req: ChatRequest, current_user: dict = Depends(get_current_user)):
-    """SSE 流式对话 —— Dify AI 优先，fallback 直连 LLM"""
+    """SSE 流式对话 —— 直连 LLM（v3.2.3 移除 Dify 优先路径：原 Dify 应用已删除，
+    每次请求都要先撞一次死服务再 fallback，徒增首字延迟）"""
     user_id = str(current_user.get("id", "default"))
     conv_id = req.conversation_id or ""
 
     async def event_generator():
-        try:
-            # 先尝试 Dify 流式对话（支持知识库 RAG）
-            done = False
-            async for chunk in DifyService.chat_stream(
-                query=req.query, user=user_id, conversation_id=conv_id
-            ):
-                if chunk:
-                    yield f"data: {json.dumps({'content': chunk, 'model': 'dify'})}\n\n"
-                    done = True
-
-            if done:
-                return
-        except Exception:
-            pass  # Dify 不可用，回退到直连
-
-        # Fallback: 直连 LLM
         async for chunk in direct_chat(
-            query=req.query, model=req.model or "qwen",
+            query=req.query, model=req.model or "deepseek",
             conversation_id=conv_id, user_id=user_id,
             temperature=req.temperature or 0.7,
             top_p=req.top_p or 0.9, max_tokens=req.max_tokens or 2048,
         ):
             if chunk:
-                yield f"data: {json.dumps({'content': chunk, 'model': req.model})}\n\n"
+                yield f"data: {json.dumps({'content': chunk, 'model': req.model or 'deepseek'})}\n\n"
 
     return StreamingResponse(
         event_generator(), media_type="text/event-stream",
