@@ -215,43 +215,81 @@ class AcademicService:
 # ---- 阿里云 ASR 服务 ----
 
 class ASRService:
-    """语音识别 — 阿里云百炼 Paraformer"""
+    """语音识别 — 阿里云百炼 Paraformer（文件转写）"""
+
+    @staticmethod
+    def _get_api_key() -> str:
+        """百炼/DashScope Key：统一配置缓存（DB api_configs）→ 环境变量"""
+        from ..config import get_api_config
+        for provider in ("bailian", "dashscope", "qwen"):
+            key = get_api_config(provider)
+            if key:
+                return key
+        return os.getenv("DASHSCOPE_API_KEY", "")
+
+    @staticmethod
+    def _extract_audio(src: str) -> str:
+        """用 ffmpeg 从视频/音频抽取 16k 单声道 wav（ASR 只认纯净音频）"""
+        import subprocess, tempfile
+        wav = os.path.join(tempfile.gettempdir(), f"asr_{os.path.basename(src)}.wav")
+        cmd = ["ffmpeg", "-y", "-i", src, "-vn", "-ac", "1", "-ar", "16000", "-f", "wav", wav]
+        proc = subprocess.run(cmd, capture_output=True, timeout=300)
+        if proc.returncode != 0 or not os.path.exists(wav):
+            raise RuntimeError(f"ffmpeg 音频抽取失败: {proc.stderr.decode(errors='ignore')[-200:]}")
+        return wav
 
     @staticmethod
     async def transcribe_file(file_path: str) -> dict:
-        """转写音频文件为文字"""
+        """转写音视频文件为文字：ffmpeg 抽音频 → Paraformer 文件识别"""
+        api_key = ASRService._get_api_key()
+        if not api_key:
+            return {"status": "error", "message": "未配置百炼 API Key（系统管理 → API 配置 → bailian）"}
+        wav = None
         try:
             import dashscope
             from dashscope.audio.asr import Recognition
             from http import HTTPStatus
 
-            result = Recognition(model="paraformer-realtime-v2", format="wav", sample_rate=16000).call(file_path)
+            dashscope.api_key = api_key
+            # 非 wav 输入（mp4 等）先抽音频；wav 也统一转 16k 单声道保证识别率
+            wav = ASRService._extract_audio(file_path)
+
+            def _call():
+                # SDK 新版本要求显式传 callback（同步文件转写传 None）
+                # 注：本账号百炼仅开通 paraformer-realtime-v2（v1/v2 文件版无权限）
+                return Recognition(
+                    model="paraformer-realtime-v2", format="wav", sample_rate=16000, callback=None,
+                ).call(wav)
+
+            result = await asyncio.to_thread(_call)
             if result.status_code == HTTPStatus.OK:
-                return {"status": "ok", "text": result.get_sentence().get("text", "")}
-            return {"status": "error", "message": result.message}
+                sentences = result.get_sentence() or []
+                # get_sentence() 依 SDK 版本返回 list[dict] 或 dict
+                if isinstance(sentences, dict):
+                    text = sentences.get("text", "")
+                else:
+                    text = "".join(s.get("text", "") for s in sentences)
+                if not text.strip():
+                    return {"status": "error", "message": "ASR 返回空文本（音频可能无语音）"}
+                return {"status": "ok", "text": text}
+            return {"status": "error", "message": f"ASR {result.status_code}: {result.message}"}
         except Exception as e:
-            return {"status": "offline", "message": str(e)}
+            return {"status": "error", "message": str(e)}
+        finally:
+            if wav and os.path.exists(wav):
+                try: os.remove(wav)
+                except OSError: pass
 
 
 # ---- 内部工具 ----
 
 def _get_dify_key() -> str:
-    """从数据库或环境变量获取 Dify API Key"""
-    try:
-        # 尝试从环境变量
-        key = os.getenv("DIFY_API_KEY")
-        if key:
-            return key
-        # 从 SQLite 读取
-        import sqlite3
-        conn = sqlite3.connect("data/csic.db")
-        row = conn.execute("SELECT value FROM api_configs WHERE provider='dify' LIMIT 1").fetchone()
-        conn.close()
-        if row:
-            return row[0]
-    except Exception:
-        pass
-    return "***REMOVED-DIFY-KEY***"
+    """Dify 对话应用 Key：环境变量 → api_configs(dify_app) → api_configs(dify)。不再硬编码"""
+    key = os.getenv("DIFY_API_KEY")
+    if key:
+        return key
+    from ..config import get_api_config
+    return get_api_config("dify_app") or get_api_config("dify") or ""
 
 
 async def _list_datasets(key: str) -> dict:

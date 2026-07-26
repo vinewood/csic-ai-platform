@@ -6,6 +6,9 @@ import json, time, subprocess
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 import httpx
 from ..auth import get_current_user
+from ..config import DATA_DIR
+
+DB_PATH = str(DATA_DIR / "csic.db")
 
 router = APIRouter(prefix="/api/dify", tags=["Dify集成"],
     dependencies=[Depends(get_current_user)])  # v3.1.2 路由级鉴权
@@ -139,7 +142,7 @@ async def list_documents(dataset_id: str, page: int = 1, limit: int = 30, curren
     try:
         # First try kb_documents (our tracking DB with progress info)
         import sqlite3
-        conn = sqlite3.connect("/www/wwwroot/csic.thinkalike.com.cn/data/csic.db")
+        conn = sqlite3.connect(DB_PATH)
         try:
             rows = conn.execute(
                 "SELECT id, name, file_size, word_count, status, progress, error, dify_doc_id "
@@ -202,7 +205,7 @@ async def documents_progress(dataset_id: str, current_user: dict = Depends(get_c
 async def document_status(doc_id: str, current_user: dict = Depends(get_current_user)):
     """获取单个文档处理状态和进度"""
     import sqlite3
-    conn = sqlite3.connect("/www/wwwroot/csic.thinkalike.com.cn/data/csic.db")
+    conn = sqlite3.connect(DB_PATH)
     try:
         row = conn.execute(
             "SELECT id, name, status, progress, error FROM kb_documents WHERE id=? OR dify_doc_id=?",
@@ -230,7 +233,7 @@ async def delete_document(dataset_id: str, doc_id: str, current_user: dict = Dep
     """删除文档 — 本地追踪DB + Dify DB + 磁盘文件"""
     import sqlite3, os, subprocess
     
-    conn = sqlite3.connect("/www/wwwroot/csic.thinkalike.com.cn/data/csic.db")
+    conn = sqlite3.connect(DB_PATH)
     row = conn.execute(
         "SELECT filepath, dify_doc_id FROM kb_documents WHERE id=? OR dify_doc_id=?",
         (doc_id, doc_id)

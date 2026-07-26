@@ -8,18 +8,29 @@ OPENALEX_BASE = "https://api.openalex.org"
 SEMANTIC_BASE = "https://api.semanticscholar.org/graph/v1"
 
 
-def _get_aminer_token() -> Optional[str]:
-    """从数据库读取 AMiner API Key"""
+def _db_path() -> str:
+    """数据库路径：统一走 app.config.DATA_DIR（项目根 data/csic.db），不写死服务器绝对路径"""
+    from ..config import DATA_DIR
+    return str(DATA_DIR / "csic.db")
+
+
+def _read_api_config(provider: str) -> dict:
+    """从 api_configs 表读取指定服务商配置"""
     import sqlite3
     try:
-        conn = sqlite3.connect("/www/wwwroot/csic.thinkalike.com.cn/data/csic.db")
-        row = conn.execute("SELECT config_json FROM api_configs WHERE provider='aminer'").fetchone()
+        conn = sqlite3.connect(_db_path())
+        row = conn.execute("SELECT config_json FROM api_configs WHERE provider=?", (provider,)).fetchone()
         conn.close()
         if row:
-            cfg = json.loads(row[0])
-            return cfg.get("key", "") or ""
-    except: pass
-    return ""
+            return json.loads(row[0])
+    except Exception:
+        pass
+    return {}
+
+
+def _get_aminer_token() -> Optional[str]:
+    """从数据库读取 AMiner API Key"""
+    return _read_api_config("aminer").get("key", "") or ""
 
 
 def _get_aminer_auth() -> str:
@@ -33,16 +44,8 @@ def _get_aminer_auth() -> str:
 
 def _get_openalex_email() -> str:
     """从数据库读取 OpenAlex email"""
-    import sqlite3
-    try:
-        conn = sqlite3.connect("/www/wwwroot/csic.thinkalike.com.cn/data/csic.db")
-        row = conn.execute("SELECT config_json FROM api_configs WHERE provider='openalex'").fetchone()
-        conn.close()
-        if row:
-            cfg = json.loads(row[0])
-            return cfg.get("key", "") or cfg.get("email", "")
-    except: pass
-    return ""
+    cfg = _read_api_config("openalex")
+    return cfg.get("key", "") or cfg.get("email", "")
 
 
 # ==================== AMiner API ====================
@@ -271,16 +274,8 @@ async def crossref_lookup_doi(doi: str) -> dict:
 
 def _get_moodle_config() -> tuple:
     """获取 Moodle 配置 (url, token)"""
-    import sqlite3, json
-    try:
-        conn = sqlite3.connect("/www/wwwroot/csic.thinkalike.com.cn/data/csic.db")
-        row = conn.execute("SELECT config_json FROM api_configs WHERE provider='moodle'").fetchone()
-        conn.close()
-        if row:
-            cfg = json.loads(row[0])
-            return cfg.get("url", ""), cfg.get("token", "")
-    except: pass
-    return "", ""
+    cfg = _read_api_config("moodle")
+    return cfg.get("url", ""), cfg.get("token", "")
 
 
 async def moodle_get_courses() -> dict:

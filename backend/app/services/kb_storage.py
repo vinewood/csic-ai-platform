@@ -2,9 +2,12 @@
 import os, uuid, time, json, sqlite3
 from datetime import datetime
 from pathlib import Path
+from ..config import DATA_DIR, UPLOAD_DIR
 
-UPLOAD_BASE = Path("/www/wwwroot/csic.thinkalike.com.cn/uploads/kb_docs")
+UPLOAD_BASE = UPLOAD_DIR / "kb_docs"
 UPLOAD_BASE.mkdir(parents=True, exist_ok=True)
+
+DB_PATH = str(DATA_DIR / "csic.db")
 
 def save_uploaded_doc(dataset_id: str, filename: str, content: bytes, user_id: str = "") -> dict:
     """保存上传的文档，返回文档信息"""
@@ -20,7 +23,7 @@ def save_uploaded_doc(dataset_id: str, filename: str, content: bytes, user_id: s
     word_count = estimate_word_count(content, ext)
 
     # 存入本地数据库追踪
-    conn = sqlite3.connect("/www/wwwroot/csic.thinkalike.com.cn/data/csic.db")
+    conn = sqlite3.connect(DB_PATH)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS kb_documents (
             id TEXT PRIMARY KEY, dataset_id TEXT, name TEXT, filepath TEXT,
@@ -108,7 +111,7 @@ def estimate_word_count(content: bytes, ext: str) -> int:
 
 def get_kb_stats() -> dict:
     """获取知识库统计信息"""
-    conn = sqlite3.connect("/www/wwwroot/csic.thinkalike.com.cn/data/csic.db")
+    conn = sqlite3.connect(DB_PATH)
     try:
         pending = conn.execute("SELECT COUNT(*) FROM kb_documents WHERE status='pending'").fetchone()[0]
         indexing = conn.execute("SELECT COUNT(*) FROM kb_documents WHERE status='indexing'").fetchone()[0]
@@ -133,7 +136,7 @@ def update_doc_progress():
         )
         if result.returncode != 0: return
 
-        conn = sqlite3.connect("/www/wwwroot/csic.thinkalike.com.cn/data/csic.db")
+        conn = sqlite3.connect(DB_PATH)
         for line in result.stdout.strip().split("\n"):
             parts = line.split("|||")
             if len(parts) < 2: continue
@@ -154,7 +157,7 @@ def retrieve_from_kb(query: str, dataset_id: str = "", top_k: int = 5) -> list:
     """从知识库检索相关文档（支持中文关键词匹配）"""
     import sqlite3, os, re
     results = []
-    conn = sqlite3.connect("/www/wwwroot/csic.thinkalike.com.cn/data/csic.db")
+    conn = sqlite3.connect(DB_PATH)
     
     where = "WHERE status='ready'"
     params = []

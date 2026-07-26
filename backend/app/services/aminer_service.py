@@ -12,9 +12,10 @@ AMINER_BASE = "https://datacenter.aminer.cn/gateway/open_platform/api"
 
 
 def _get_aminer_credentials():
-    """从数据库读取 AMiner API Key"""
+    """从数据库读取 AMiner API Key（统一走 app.config.DATA_DIR）"""
     try:
-        db_path = Path(__file__).resolve().parent.parent.parent / "data" / "csic.db"
+        from ..config import DATA_DIR
+        db_path = DATA_DIR / "csic.db"
         conn = sqlite3.connect(str(db_path))
         row = conn.execute(
             "SELECT config_json FROM api_configs WHERE provider='aminer' LIMIT 1"

@@ -64,23 +64,39 @@ async def academic_search(query: str = Form(...), model: str = Form("deepseek"),
     """三层检索：AMiner 学者 → Arxiv 论文 → AI 增强分析"""
     results = {"source": "multi", "scholars": None, "arxiv": None, "analysis": None, "query": query}
 
-    # 第1层: AMiner 学者搜索 (免费)
+    # 第1层: 学者搜索 — OpenAlex（免费无需 Key）为主，AMiner（需 Key）为辅
     try:
-        from ..services.aminer_service import search_scholars
-        s = search_scholars(query, size=5)
-        if not s.get("error") and s.get("data"):
+        from ..services.academic_search import openalex_search_authors, aminer_search_scholar
+        s = await openalex_search_authors(query=query)
+        rows = s.get("results") or []
+        if rows:
             results["scholars"] = [
                 {"name": r.get("name","?"), "id": r.get("id",""),
-                 "org": r.get("org",""), "h_index": r.get("h_index","")}
-                for r in s["data"][:5]
+                 "org": r.get("institution",""), "h_index": r.get("h_index","")}
+                for r in rows[:5]
             ]
-    except: pass
+            results["scholar_source"] = "OpenAlex"
+        else:
+            # OpenAlex 无结果再试 AMiner（需配置 Key，未配置会返回 note/error）
+            s2 = await aminer_search_scholar(name=query, size=5)
+            rows2 = s2.get("results") or []
+            if rows2:
+                results["scholars"] = [
+                    {"name": r.get("name_zh") or r.get("name","?"), "id": r.get("id",""),
+                     "org": r.get("org",""), "h_index": r.get("h_index","")}
+                    for r in rows2[:5]
+                ]
+                results["scholar_source"] = "AMiner"
+            else:
+                results.setdefault("errors", []).append("学者检索: OpenAlex/AMiner 均无结果")
+    except Exception as e:
+        results.setdefault("errors", []).append(f"学者检索异常: {e}")
 
-    # 第2层: Arxiv 论文搜索 (免费)
+    # 第2层: Arxiv 论文搜索（https + 跟随重定向，http 会 301 导致静默失败）
     try:
         import httpx, xml.etree.ElementTree as ET
-        async with httpx.AsyncClient(timeout=15) as c:
-            resp = await c.get(f"http://export.arxiv.org/api/query?search_query=all:{query}&max_results=5")
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as c:
+            resp = await c.get(f"https://export.arxiv.org/api/query?search_query=all:{query}&max_results=5")
             root = ET.fromstring(resp.text)
             ns = {"atom":"http://www.w3.org/2005/Atom"}
             papers = []
@@ -92,8 +108,12 @@ async def academic_search(query: str = Form(...), model: str = Form("deepseek"),
                     "authors": ", ".join([a.find("atom:name", ns).text for a in entry.findall("atom:author", ns) if a.find("atom:name", ns) is not None][:3]),
                     "published": (entry.find("atom:published",ns).text or "")[:10],
                 })
-            if papers: results["arxiv"] = papers
-    except: pass
+            if papers:
+                results["arxiv"] = papers
+            else:
+                results.setdefault("errors", []).append("Arxiv: 无结果")
+    except Exception as e:
+        results.setdefault("errors", []).append(f"Arxiv 异常: {e}")
 
     # 第3层: AI 增强分析
     context = ""

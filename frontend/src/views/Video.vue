@@ -159,8 +159,8 @@ async function pollResult(id) {
             renderSimpleMindmap(container, res.mindmap)
           }
         }
-      } else if (res.status === 'error') {
-        ElMessage.error('分析失败: ' + (res.error || '未知错误'))
+      } else if (res.status === 'error' || res.status === 'failed') {
+        ElMessage.error('分析失败: ' + (res.error || res.summary || '未知错误'))
         analyzing.value = false
       } else if (retries < maxRetries) {
         retries++

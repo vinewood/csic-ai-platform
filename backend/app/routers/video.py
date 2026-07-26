@@ -96,29 +96,35 @@ async def _process_video(task_id: int, filepath: str):
         if not task:
             return
 
-        # Step 1: ASR 语音转文字
+        # Step 1: ASR 语音转文字（失败则任务如实失败，不拿错误文本喂 AI）
         asr_result = await ASRService.transcribe_file(filepath)
-        transcript = asr_result.get("text", "转写失败: " + asr_result.get("message", "未知错误"))
+        if asr_result.get("status") != "ok" or not asr_result.get("text"):
+            task.status = "failed"
+            task.transcript = ""
+            task.summary = f"转写失败: {asr_result.get('message', '未知错误')}"
+            task.flashcards = "[]"
+            await session.commit()
+            return
+        transcript = asr_result["text"]
 
-        # Step 2: Dify AI 生成摘要
-        summary = "AI 摘要生成中..."
+        # Step 2: AI 生成摘要（直连模型路由 MODEL_ENDPOINTS，与教学台同一实现；
+        # 不再走 Dify chat-messages——原 Dify 应用已删除，该路径必然 403）
+        from .teaching import _ai_call
         try:
-            dify_summary = await DifyService.chat_blocking(
-                query=f"请用200字中文概括以下视频转写内容：\n\n{transcript[:3000]}",
-                user="admin"
-            )
-            summary = dify_summary.get("answer", summary)
+            summary = await _ai_call([
+                {"role": "user", "content": f"请用200字中文概括以下视频转写内容：\n\n{transcript[:3000]}"}
+            ])
         except Exception:
-            pass
+            summary = ""
+        if not summary:
+            summary = "AI 摘要生成失败，请检查模型 API Key 配置后重试"
 
-        # Step 3: Dify AI 生成知识闪卡
+        # Step 3: AI 生成知识闪卡（同 Step 2 路由）
         flashcards = []
         try:
-            dify_cards = await DifyService.chat_blocking(
-                query=f"根据以下内容生成5道Q&A问答对（JSON数组格式{{\"question\":\"...\",\"answer\":\"...\"}}）：\n\n{transcript[:3000]}",
-                user="admin"
-            )
-            answer = dify_cards.get("answer", "[]")
+            answer = await _ai_call([
+                {"role": "user", "content": f"根据以下内容生成5道Q&A问答对（JSON数组格式{{\"question\":\"...\",\"answer\":\"...\"}}）：\n\n{transcript[:3000]}"}
+            ])
             import re
             match = re.search(r"\[.*\]", answer, re.DOTALL)
             if match:
@@ -131,11 +137,8 @@ async def _process_video(task_id: int, filepath: str):
         task.summary = summary
         task.flashcards = json.dumps(flashcards, ensure_ascii=False)
 
-        # 保存视频到 Dify 知识库（可选）
-        try:
-            await DifyService.upload_file(filepath, "admin")
-        except Exception:
-            pass
+        # （已移除"保存视频到 Dify 知识库"步骤：原 Dify 应用已删除，
+        #  /v1/files/upload 必然 403 且异常被静默吞掉，属无效死代码）
 
         await session.commit()
 
