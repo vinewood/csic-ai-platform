@@ -35,31 +35,17 @@
 
     <!-- 中栏：对话主区 -->
     <div class="chat-main">
-      <!-- 顶栏 -->
+      <!-- 顶栏：模型 chips 选择（选1个=单聊，选2-6个=自动宫格对比） -->
       <div class="chat-tools">
-        <el-radio-group v-model="mode" size="small">
-          <el-radio-button value="single">单模型</el-radio-button>
-          <el-radio-button value="multi">多模型</el-radio-button>
-        </el-radio-group>
-        <template v-if="mode==='single'">
-          <el-select v-model="model" size="small" style="width:130px">
-            <el-option v-for="m in models" :key="m.value" :label="m.label" :value="m.value" />
-          </el-select>
-        </template>
-        <template v-else>
-          <el-select v-model="multiModels" size="small" style="width:200px" multiple collapse-tags :multiple-limit="6">
-            <el-option v-for="m in models" :key="m.value" :label="m.label" :value="m.value" />
-          </el-select>
-          <!-- 宫格布局切换：2/4/6 宫格 -->
-          <div class="grid-switch">
-            <button v-for="g in gridModes" :key="g.key"
-                    :class="['grid-btn',{active:gridMode===g.key}]"
-                    :title="g.label" @click="gridMode=g.key">
-              <span class="grid-icon" :data-cols="g.cols"><i v-for="n in g.cells" :key="n"></i></span>
-              {{ g.label }}
-            </button>
-          </div>
-        </template>
+        <div class="model-chips">
+          <button v-for="m in models" :key="m.value"
+                  :class="['model-chip', { active: picked.includes(m.value) }]"
+                  :style="picked.includes(m.value) ? { borderColor: modelColor(m.value), color: modelColor(m.value) } : {}"
+                  @click="toggleModel(m.value)">
+            <span class="chip-dot" :style="{ background: modelColor(m.value) }"></span>{{ m.label }}
+          </button>
+          <span class="chip-hint">{{ picked.length > 1 ? `已选 ${picked.length} 个模型 · 自动 ${picked.length} 宫格` : '单模型对话 · 再点选模型即自动宫格对比' }}</span>
+        </div>
         <el-select v-model="kbId" size="small" style="width:130px;margin-left:4px" clearable placeholder="知识库">
           <el-option v-for="kb in kbList" :key="kb.id" :label="kb.name" :value="kb.id">
             <span>{{ kb.name }}</span><span style="color:#bbb;font-size:10px;margin-left:6px">{{ kb.count }}篇</span>
@@ -73,7 +59,7 @@
       <div class="chat-body" ref="bodyRef">
         <div v-if="showEmpty" class="empty">
           <p>选择左侧教学功能或直接输入教学需求</p>
-          <p v-if="mode==='multi'" style="font-size:12px;color:#b6bbc4">多模型模式：同一问题同屏对比作答，区块可最大化聚焦</p>
+          <p v-if="mode==='multi'" style="font-size:12px;color:#b6bbc4">已选 {{ picked.length }} 个模型：同一问题同屏对比作答，区块可最大化聚焦</p>
           <div class="quick-btns">
             <el-button v-for="q in quickBtns" :key="q.id" size="small" round @click="input=q.prompt;doSend()">{{ q.label }}</el-button>
           </div>
@@ -87,9 +73,9 @@
           <div v-if="thinking" class="msg assistant"><div class="msg-text thinking-dots">思考中…</div></div>
         </template>
 
-        <!-- 多模型：宫格工作台（共享组件） -->
+        <!-- 多模型：宫格工作台（共享组件，布局随模型数自动） -->
         <ModelCompareGrid v-else ref="gridRef"
-          :models="multiModels" :grid-mode="gridMode"
+          :models="multiModels"
           :get-conv-id="() => convId" :extra-fn="teachExtra"
           @meta="onGridMeta" @busy="v => thinking = v" />
       </div>
@@ -139,6 +125,7 @@ import { apiGet, apiDelete, apiPost } from '../api.js'
 import { marked } from 'marked'
 import { ElMessage } from 'element-plus'
 import ModelCompareGrid from '../components/ModelCompareGrid.vue'
+import { modelColor } from '../utils/models.js'
 
 const iconMap = { ...Icons }
 
@@ -156,7 +143,7 @@ const quickBtns = [
   { id: 'q3', label: '干部能力提升课程方案', prompt: '请为中青年干部能力提升设计课程方案' },
 ]
 
-const input = ref(''), mode = ref('single'), model = ref('deepseek'), multiModels = ref(['deepseek','qwen-plus'])
+const input = ref('')
 const thinking = ref(false), msgs = ref([]), skillId = ref(''), funcId = ref(''), kbId = ref(''), kbList = ref([])
 const skills = ref([]), convs = ref([]), convId = ref('new')
 const models = [
@@ -169,13 +156,29 @@ const models = [
 ]
 const bodyRef = ref(null)
 
-// ---- 多模型宫格 ----
-const gridMode = ref('grid4')
-const gridModes = [
-  { key:'grid2', label:'2宫格', cols:2, cells:2 },
-  { key:'grid4', label:'4宫格', cols:2, cells:4 },
-  { key:'grid6', label:'6宫格', cols:3, cells:6 },
-]
+// ---- 模型选择（chips 单一数据源）：选 1 个=单聊，选 2-6 个=自动宫格 ----
+const picked = ref(['deepseek'])
+const mode = computed({
+  get: () => picked.value.length > 1 ? 'multi' : 'single',
+  set: v => { if (v === 'single') picked.value = [picked.value[0]] },
+})
+const model = computed({
+  get: () => picked.value[0],
+  set: v => { picked.value = [v] },
+})
+const multiModels = computed({
+  get: () => picked.value,
+  set: v => { if (Array.isArray(v) && v.length) picked.value = [...new Set(v)].slice(0, 6) },
+})
+function toggleModel(m) {
+  if (picked.value.includes(m)) {
+    if (picked.value.length > 1) picked.value = picked.value.filter(x => x !== m)  // 至少保留 1 个
+  } else {
+    if (picked.value.length >= 6) { ElMessage.warning('最多同时对比 6 个模型'); return }
+    picked.value = [...picked.value, m]
+  }
+}
+
 const gridRef = ref(null)
 const multiStarted = ref(false)
 
@@ -435,15 +438,13 @@ async function handleUpload(file) {
 .msg-text :deep(code) { background:#eef0f3;padding:1px 4px;border-radius:4px;font-size:11.5px; }
 .msg-text :deep(pre code) { background:transparent; padding:0; }
 
-/* ===== 宫格切换按钮（与 Chat 页一致） ===== */
-.grid-switch { display:flex; gap:4px; background:#f3f4f6; padding:3px; border-radius:8px; }
-.grid-btn { display:flex; align-items:center; gap:5px; border:none; background:transparent; padding:4px 10px; border-radius:6px; font-size:12px; color:#6b7280; cursor:pointer; transition:all .15s; }
-.grid-btn:hover { color:#1677ff; }
-.grid-btn.active { background:#fff; color:#1677ff; font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,.08); }
-.grid-icon { display:grid; gap:1.5px; width:16px; height:12px; }
-.grid-icon[data-cols="2"] { grid-template-columns:repeat(2,1fr); }
-.grid-icon[data-cols="3"] { grid-template-columns:repeat(3,1fr); }
-.grid-icon i { background:currentColor; border-radius:1px; opacity:.75; }
+/* ===== 模型 chips 选择器（选 2-6 个自动成宫格，与 Chat 页一致） ===== */
+.model-chips { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.model-chip { display:flex; align-items:center; gap:5px; border:1px solid #e5e7eb; background:#fff; padding:4px 10px; border-radius:16px; font-size:12px; color:#6b7280; cursor:pointer; transition:all .15s; }
+.model-chip:hover { border-color:#c7d2fe; color:#374151; }
+.model-chip.active { background:#f5f7ff; font-weight:600; }
+.chip-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.chip-hint { font-size:11px; color:#9ca3af; margin-left:2px; }
 
 .chat-input { padding:8px 12px; background:#fff; border-top:1px solid #ebedf0; }
 .skill-badge { padding:4px 0; }

@@ -19,7 +19,7 @@
       </div>
     </div>
 
-    <!-- 宫格态：2/4/6 宫格 -->
+    <!-- 宫格态：布局随模型数自动推导（2列/3列/2×2/3×2） -->
     <div v-else class="pane-grid" :style="gridStyle">
       <div v-for="(p,pi) in panes" :key="p.model" class="pane">
         <div class="pane-header">
@@ -45,7 +45,7 @@
 <script setup>
 /**
  * 多模型对比宫格工作台（共享组件）
- * - 2/4/6 宫格布局（gridMode 由父级工具栏切换）
+ * - 宫格布局全自动：2→2列 / 3→3列 / 4→2×2 / 5-6→3×2，随所选模型数即时变化（v3.2.1）
  * - 每个模型一个独立区块，可最大化全屏聚焦、可还原原位
  * - 同一问题并行流式发送；首发请求先建立会话，拿到 conversation_id 后
  *   再并发其余请求，避免多请求各自新建会话（meta 事件回传父级）
@@ -54,45 +54,27 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { ZoomIn, ZoomOut } from '@element-plus/icons-vue'
 import { marked } from 'marked'
+import { MODEL_META, modelLabel, modelColor } from '../utils/models.js'
 
 const props = defineProps({
-  models: { type: Array, default: () => [] },        // 模型 key 数组
-  gridMode: { type: String, default: 'grid4' },      // grid2 / grid4 / grid6
+  models: { type: Array, default: () => [] },        // 模型 key 数组（有序，即宫格顺序）
   endpoint: { type: String, default: '/api/chat/dify-chat' },
   getConvId: { type: Function, default: () => '' },  // 父级会话 id getter
   extraFn: { type: Function, default: () => ({}) },  // 附加请求字段（skill_id 等）
 })
 const emit = defineEmits(['meta', 'busy'])
 
-const GRID_DEFS = {
-  grid2: { cols: 2, rows: 1 },
-  grid4: { cols: 2, rows: 2 },
-  grid6: { cols: 3, rows: 2 },
-}
+// 宫格自动布局：列数 × 行数随模型数量推导，无需手工切换
+const AUTO_LAYOUT = { 1: [1, 1], 2: [2, 1], 3: [3, 1], 4: [2, 2], 5: [3, 2], 6: [3, 2] }
 const gridStyle = computed(() => {
-  const g = GRID_DEFS[props.gridMode] || GRID_DEFS.grid4
+  const n = Math.min(Math.max(panes.value.length, 1), 6)
+  const [cols, rows] = AUTO_LAYOUT[n]
   return {
-    'grid-template-columns': `repeat(${g.cols}, 1fr)`,
-    'grid-template-rows': `repeat(${g.rows}, 1fr)`,
+    'grid-template-columns': `repeat(${cols}, 1fr)`,
+    'grid-template-rows': `repeat(${rows}, 1fr)`,
     'grid-auto-rows': '1fr',
   }
 })
-
-const MODEL_META = {
-  deepseek:      { label: 'DeepSeek V4 Pro', color: '#4D6BFE' },
-  qwen:          { label: '通义千问', color: '#615CED' },
-  'qwen-plus':   { label: 'Qwen Plus', color: '#615CED' },
-  'qwen-max':    { label: 'Qwen Max', color: '#4338CA' },
-  'qwen-turbo':  { label: 'Qwen Turbo', color: '#818CF8' },
-  'qwen-coder-plus': { label: 'Qwen Coder', color: '#3730A3' },
-  'glm-4':       { label: 'GLM', color: '#3B9CFF' },
-  zhipu:         { label: '智谱GLM', color: '#3B9CFF' },
-  kimi:          { label: 'Kimi', color: '#111827' },
-  minimax:       { label: 'MiniMax', color: '#F59E0B' },
-  doubao:        { label: '豆包', color: '#22C55E' },
-}
-const modelLabel = m => MODEL_META[m]?.label || m
-const modelColor = m => MODEL_META[m]?.color || '#1677ff'
 
 const panes = ref([])
 const maximized = ref(null)
@@ -223,6 +205,10 @@ defineExpose({ broadcast, clear, loadRounds, panes })
 
 /* ===== 宫格 ===== */
 .pane-grid { display:grid; gap:10px; height:100%; }
+/* 窄屏兜底：自动 2 列纵向滚动，避免 3 列挤压不可读 */
+@media (max-width: 900px) {
+  .pane-grid { grid-template-columns: repeat(2, 1fr) !important; grid-template-rows: none !important; grid-auto-rows: minmax(240px, 1fr) !important; overflow-y: auto; }
+}
 .pane { background:#fff; border:1px solid #e8eaee; border-radius:12px; display:flex; flex-direction:column; min-height:0; overflow:hidden; box-shadow:0 1px 3px rgba(16,24,40,.05); }
 .pane-max { height:100%; }
 .pane-header { display:flex; align-items:center; gap:7px; padding:8px 12px; border-bottom:1px solid #f0f1f4; background:#fafbfc; }
