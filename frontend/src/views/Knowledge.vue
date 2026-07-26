@@ -59,7 +59,11 @@
 
       <!-- 空状态 -->
       <div v-if="!datasets.length && !localKbs.length" class="kb-empty">
-        <p style="color:#999">暂无数据集。点击「新建数据集」开始</p>
+        <div class="csic-empty">
+          <span class="empty-icon">📚</span>
+          <span class="empty-title">暂无数据集</span>
+          <span class="empty-desc">点击右上角「新建数据集」，上传文档后即可在对话中挂载知识库</span>
+        </div>
         <el-button type="primary" size="small" style="margin-top:12px" @click="showCreate=true">新建数据集</el-button>
       </div>
     </div>

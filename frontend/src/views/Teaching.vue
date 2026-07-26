@@ -29,7 +29,7 @@
             </template>
           </el-dropdown>
         </div>
-        <div v-if="convs.length===0" style="color:#bbb;font-size:11px;text-align:center;padding:10px">暂无历史</div>
+        <div v-if="convs.length===0" class="csic-empty csic-empty--sm"><span class="empty-icon">📝</span><span class="empty-title">暂无历史</span></div>
       </div>
     </div>
 
@@ -105,7 +105,7 @@
           <el-icon :size="14"><component :is="iconMap[s.icon] || MagicStick" /></el-icon>
           <span>{{ s.name }}</span>
         </div>
-        <div v-if="skills.length===0" style="color:#bbb;font-size:11px;text-align:center;padding:10px">暂无技能</div>
+        <div v-if="skills.length===0" class="csic-empty csic-empty--sm"><span class="empty-icon">✨</span><span class="empty-title">暂无技能</span></div>
       </div>
     </div>
   </div>

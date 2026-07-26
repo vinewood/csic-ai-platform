@@ -242,3 +242,37 @@ body {
     repeating-linear-gradient(90deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 26px),
     linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #273549 100%);
 }
+
+/* ===== v3.2.4 全面优化第二批：统一空/加载/错误三态 ===== */
+/* 空状态：.csic-empty（标准）/ .csic-empty--sm（侧栏、小区域） */
+.csic-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px; padding: 52px 20px; text-align: center; color: var(--text-muted);
+}
+.csic-empty .empty-icon { font-size: 40px; line-height: 1; opacity: 0.45; margin-bottom: 4px; }
+.csic-empty .empty-title { font-size: 14px; font-weight: 600; color: var(--text-secondary); }
+.csic-empty .empty-desc { font-size: 12px; color: var(--text-muted); max-width: 320px; line-height: 1.6; }
+.csic-empty--sm { padding: 14px 8px; gap: 2px; }
+.csic-empty--sm .empty-icon { font-size: 20px; margin-bottom: 2px; }
+.csic-empty--sm .empty-title { font-size: 12px; font-weight: 500; }
+
+/* 加载态：旋转点 + 文案（按钮外的区域加载统一用法） */
+.csic-loading {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 40px 20px; color: var(--text-muted); font-size: 13px;
+}
+.csic-loading::before {
+  content: ''; width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid var(--el-color-primary-light-7); border-top-color: var(--el-color-primary);
+  animation: csic-spin 0.8s linear infinite; flex-shrink: 0;
+}
+@keyframes csic-spin { to { transform: rotate(360deg); } }
+
+/* 错误态：错误说明 + 可选重试按钮容器 */
+.csic-error {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 40px 20px; text-align: center;
+}
+.csic-error .error-icon { font-size: 32px; line-height: 1; }
+.csic-error .error-title { font-size: 14px; font-weight: 600; color: #b91c1c; }
+.csic-error .error-desc { font-size: 12px; color: var(--text-muted); max-width: 360px; line-height: 1.6; word-break: break-all; }

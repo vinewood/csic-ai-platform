@@ -34,9 +34,10 @@
 
       <!-- 瀑布流 -->
       <main class="news-main">
-        <div v-if="!filteredArticles.length" class="empty-state">
-          <el-icon :size="48" color="#e5e7eb"><Document /></el-icon>
-          <p>暂无资讯，点击「生成」获取今日资讯</p>
+        <div v-if="!filteredArticles.length" class="csic-empty">
+          <span class="empty-icon">📰</span>
+          <span class="empty-title">暂无资讯</span>
+          <span class="empty-desc">点击右上角「生成」获取今日资讯，或切换日期查看历史日报</span>
         </div>
 
         <div class="masonry" v-else>
@@ -84,7 +85,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { apiGet, apiPost } from '../api.js'
-import { Search, MagicStick, Document, Link } from '@element-plus/icons-vue'
+import { Search, MagicStick, Link } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const selectedDate = ref(new Date())
@@ -244,9 +245,6 @@ function openUrl(url) { if (url) window.open(url) }
 .card-ai { background: #10b981; color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 10px; }
 .card-title { margin: 0 0 4px; font-size: 14px; font-weight:600; color: #1a1a2e; line-height:1.5; word-break:break-word; }
 .card-desc { font-size: 12px; color: #6b7280; line-height:1.6; margin:0; word-break:break-word; }
-
-.empty-state { text-align: center; padding: 80px 0; color: #bbb; }
-.empty-state p { margin-top: 8px; font-size: 14px; }
 
 @media (max-width: 900px) { .masonry { column-count: 2; } }
 @media (max-width: 600px) {

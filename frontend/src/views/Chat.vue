@@ -11,7 +11,10 @@
           <div class="conv-time">{{ c.time }}</div>
           <el-button link size="small" class="conv-del" @click.stop="delConv(c)"><el-icon><Delete /></el-icon></el-button>
         </div>
-        <div v-if="convs.length===0" class="conv-empty">暂无历史对话</div>
+        <div v-if="convs.length===0" class="csic-empty csic-empty--sm">
+          <span class="empty-icon">💬</span>
+          <span class="empty-title">暂无历史对话</span>
+        </div>
       </div>
     </aside>
 
@@ -325,7 +328,6 @@ async function handleUpload(file) {
 .conv-time { font-size:10px; color:#9ca3af; margin-left:8px; }
 .conv-del { opacity:0; }
 .conv-item:hover .conv-del { opacity:1; }
-.conv-empty { text-align:center; color:#bbb; padding:24px 0; font-size:12px; }
 
 .chat-main { flex:1; display:flex; flex-direction:column; min-width:0; }
 .chat-tools { padding:8px 14px; background:#fff; border-bottom:1px solid #ebedf0; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }

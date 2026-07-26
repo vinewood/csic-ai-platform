@@ -38,7 +38,7 @@
                   <el-dropdown-item command="delete" divided><el-icon><Delete /></el-icon>删除</el-dropdown-item>
                 </el-dropdown-menu></template>
               </el-dropdown>
-            </div><div v-if="!convs.length" style="color:#bbb;font-size:11px;text-align:center;padding:10px">暂无历史</div>
+            </div><div v-if="!convs.length" class="csic-empty csic-empty--sm"><span class="empty-icon">🔬</span><span class="empty-title">暂无历史</span></div>
           </div>
         </div>
         <div class="chat-main">
