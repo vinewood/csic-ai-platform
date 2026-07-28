@@ -158,7 +158,11 @@ onMounted(async () => {
   if (cdata) convs.value = cdata.map(c => ({id:c.id,title:c.title||c.name||'对话',time:c.created_at?.slice(0,10)||'刚刚'}))
 
   const skillId = route.query.skill
-  if (skillId) activeSkill.value = skillId
+  if (skillId) {
+    // 用列表原始 id 赋值，保证 el-select 严格匹配显示技能名称而非裸 id
+    const matched = skills.value.find(x => String(x.id) === String(skillId))
+    activeSkill.value = matched ? matched.id : skillId
+  }
 })
 
 async function refreshConvs() {

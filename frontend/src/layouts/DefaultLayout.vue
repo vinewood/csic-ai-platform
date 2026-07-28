@@ -43,7 +43,7 @@
             </span>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item @click="profileVisible = true">个人设置</el-dropdown-item>
+                <el-dropdown-item @click="openProfile">个人设置</el-dropdown-item>
                 <el-dropdown-item divided @click="logout">退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -72,7 +72,7 @@
           <span>{{ tab.meta?.title }}</span>
         </div>
         <el-divider />
-        <div class="mobile-nav-item" @click="profileVisible = true; drawerOpen = false">
+        <div class="mobile-nav-item" @click="openProfile(); drawerOpen = false">
           <el-icon :size="16"><UserFilled /></el-icon>
           <span>个人设置</span>
         </div>
@@ -138,7 +138,14 @@ function logout() { localStorage.removeItem('csic_token'); localStorage.removeIt
 const profileVisible = ref(false)
 const profileLoading = ref(false)
 const profileForm = reactive({ email: '', real_name: '', password: '' })
-onMounted(() => { profileForm.email = userInfo.email || ''; profileForm.real_name = userInfo.real_name || '' })
+
+function openProfile() {
+  // 修复：原实现在 onMounted 时同步拷贝，userInfo 尚未异步加载完成，首次打开表单为空
+  profileForm.email = userInfo.email || ''
+  profileForm.real_name = userInfo.real_name || ''
+  profileForm.password = ''
+  profileVisible.value = true
+}
 
 async function saveProfile() {
   profileLoading.value = true

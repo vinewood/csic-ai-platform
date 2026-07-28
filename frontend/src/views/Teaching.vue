@@ -119,6 +119,7 @@
  * 修复：apiPost 未导入导致"整理成技能"必崩；多模型会话 id 未回传导致每次新建多个会话
  */
 import { ref, computed, onMounted, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
 import { Plus, UploadFilled, EditPen, Document, DataBoard, Notebook, MagicStick, MoreFilled, Top, Download, Delete } from '@element-plus/icons-vue'
 import * as Icons from '@element-plus/icons-vue'
 import { apiGet, apiDelete, apiPost } from '../api.js'
@@ -128,6 +129,7 @@ import ModelCompareGrid from '../components/ModelCompareGrid.vue'
 import { modelColor } from '../utils/models.js'
 
 const iconMap = { ...Icons }
+const route = useRoute()
 
 const teachFuncs = [
   { id: 'topics', label: '课题选题', icon: EditPen, prompt: '请帮我为【填写培训方向】设计5个教学课题' },
@@ -196,6 +198,13 @@ onMounted(async () => {
   if (s) skills.value = s
   if (c) convs.value = c.map(x => ({ id:x.id, title:x.title||'对话', time:x.created_at?.slice(0,10)||'' }))
   if (k) kbList.value = k
+  // 修复：技能中心「教学使用」跳转携带 ?skill=，此前未消费导致技能未挂载
+  const qs = route.query.skill
+  const matched = qs && skills.value.find(x => String(x.id) === String(qs))
+  if (matched) {
+    skillId.value = matched.id   // 用列表原始 id，保证类型一致（严格相等高亮生效）
+    ElMessage.success('已挂载技能: ' + matched.name)
+  }
 })
 
 function newConv() {

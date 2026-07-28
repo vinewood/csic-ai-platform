@@ -159,6 +159,7 @@
 
 <script setup>
 import { ref, onMounted, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { apiGet, apiDelete, apiPost } from '../api.js'
 import * as Icons from '@element-plus/icons-vue'
@@ -176,6 +177,7 @@ const tab = ref('chat'), model = ref('deepseek'), models = [
   { label: 'MiniMax M2.5', value: 'minimax' },
 ]
 const B = location.port==='5173'?'http://localhost:8000':''
+const route = useRoute()
 
 // Functions
 const paperFuncs = [{id:'read',label:'论文解读',icon:Reading,placeholder:'请粘贴论文内容进行深度解读'},{id:'review',label:'论文评审',icon:Document,placeholder:'请粘贴论文进行学术评审'},{id:'translate',label:'论文翻译',icon:Connection,placeholder:'请粘贴需要翻译的学术文本'}]
@@ -189,6 +191,10 @@ onMounted(async ()=>{
   const [s,c,k] = await Promise.all([apiGet('/api/skills'), apiGet('/api/research-chat/conversations'), apiGet('/api/dify/datasets/list')])
   if(s) skillList.value = s; if(c) convs.value = c.map(x=>({id:x.id,title:x.title||'对话',time:x.created_at?.slice(0,10)||''}))
   if(k) kbList.value = k
+  // 修复：技能中心「科研使用」跳转携带 ?skill=，此前未消费导致技能未挂载
+  const qs = route.query.skill
+  const matched = qs && skillList.value.find(x => String(x.id) === String(qs))
+  if (matched) { skillId.value = matched.id; ElMessage.success('已挂载: ' + matched.name) }
 })
 function newConv(){ convId.value='new'; chatMsgs.value=[] }
 async function loadConv(c){ convId.value=c.id; const d=await apiGet(`/api/research-chat/conversations/${c.id}/messages`); chatMsgs.value=d?d.map(m=>({role:m.role,content:m.content})):[] }

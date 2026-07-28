@@ -58,7 +58,7 @@
     </div>
 
     <!-- 阅读抽屉 -->
-    <el-drawer v-model="readVisible" :title="readArticle?.title" size="560px" destroy-on-close>
+    <el-drawer v-model="readVisible" :title="cleanHtml(readArticle?.title || '')" size="560px" destroy-on-close>
       <div class="drawer-content">
         <div class="drawer-meta">
           <el-tag size="small" effect="dark" style="background:#1677ff">{{ readArticle?.source }}</el-tag>
@@ -70,7 +70,7 @@
             <el-icon color="#10b981"><MagicStick /></el-icon>
             <strong>AI 摘要</strong>
           </div>
-          <p v-html="cleanHtml(readArticle?.summary || '')"></p>
+          <p class="drawer-ai-text">{{ cleanHtml(readArticle?.summary || '') }}</p>
         </div>
         <el-divider />
         <div class="drawer-placeholder">
@@ -127,7 +127,6 @@ const digest = computed(() => {
 const categories = computed(() => digest.value.map(d => ({ name: d.category, count: d.items.length, color: d.items[0]?.gradient || '#1677ff' })))
 const flatArticles = computed(() => digest.value.flatMap(d => d.items).sort((a,b) => (b.summary ? 1 : 0) - (a.summary ? 1 : 0)))
 const totalArticles = computed(() => flatArticles.value.length)
-const aiCount = computed(() => flatArticles.value.filter(a => a.summary).length)
 
 const filteredArticles = computed(() => {
   let list = flatArticles.value
@@ -187,7 +186,8 @@ async function loadDigest() {
     const params = {}
     if (selectedDate.value) {
       const d = selectedDate.value
-      params.date = typeof d === 'string' ? d : d.toISOString().split('T')[0]
+      // 修复：toISOString() 是 UTC 日期，UTC+8 下会比本地日期少一天，必须按本地时区格式化
+      params.date = typeof d === 'string' ? d : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
     }
     // apiGet(path) 只接收一个参数，日期筛选需手动拼 query string，否则参数不会发出
     const qs = params.date ? `?date=${encodeURIComponent(params.date)}` : ''
@@ -280,5 +280,7 @@ function openUrl(url) { if (url) window.open(url) }
 }
 .drawer-ai-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #065f46; margin-bottom: 8px; }
 .drawer-ai-box p { font-size: 14px; line-height: 1.8; color: #374151; margin: 0; }
+/* 修复：摘要改纯文本渲染（原 v-html + cleanHtml 会二次解析实体、丢失换行），pre-wrap 保留换行 */
+.drawer-ai-text { white-space: pre-wrap; word-break: break-word; }
 .drawer-placeholder { text-align: center; padding: 40px 0; color: #94a3b8; font-size: 13px; }
 </style>
