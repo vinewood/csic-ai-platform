@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>帮助中心 · 中船党校 AI 助手</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="./lib/vue.css">
+  <style>
+    :root { --theme-color: #1677ff; }
+    body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    .sidebar-toggle { display: none; }
+    @media (max-width: 768px) { .sidebar-toggle { display: block; } }
+    .app-name { font-weight: 700; }
+    .app-name img { vertical-align: middle; margin-right: 6px; }
+    .markdown-section { max-width: 860px; }
+    .search input { border-radius: 16px; }
+  </style>
+</head>
+<body>
+  <div id="app">加载中…</div>
+  <script>
+    window.$docsify = {
+      name: '中船党校 AI 助手 · 帮助中心',
+      logo: '/img/logo-en.png',
+      repo: '',
+      loadSidebar: true,
+      subMaxLevel: 2,
+      auto2top: true,
+      relativePath: false,
+      homepage: 'README.md',
+      search: { placeholder: '搜索帮助…', noData: '没有匹配内容', paths: 'auto' },
+      zoomImage: true,
+      notFoundPage: true,
+      plugins: [
+        function (hook) {
+          hook.doneEach(function () {
+            // 外链新窗口打开
+            document.querySelectorAll('.markdown-section a[href^="http"]').forEach(function (a) {
+              a.target = '_blank'; a.rel = 'noopener';
+            });
+          });
+        }
+      ]
+    };
+  </script>
+  <script src="./lib/docsify.min.js"></script>
+  <script src="./lib/search.min.js"></script>
+  <script src="./lib/zoom-image.min.js"></script>
+</body>
+</html>

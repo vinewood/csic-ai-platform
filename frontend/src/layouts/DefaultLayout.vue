@@ -21,6 +21,19 @@
               <span class="tab-title">{{ tab.meta?.title }}</span>
             </div>
           </div>
+          <!-- 帮助中心 / 接口文档 快捷入口 -->
+          <div class="header-links">
+            <el-tooltip content="帮助中心" placement="bottom">
+              <a class="header-link" href="/help/" target="_blank" rel="noopener">
+                <el-icon :size="17"><QuestionFilled /></el-icon><span class="link-text">帮助</span>
+              </a>
+            </el-tooltip>
+            <el-tooltip content="接口文档（ReDoc）" placement="bottom">
+              <a class="header-link" href="/redoc" target="_blank" rel="noopener">
+                <el-icon :size="17"><Reading /></el-icon><span class="link-text">接口</span>
+              </a>
+            </el-tooltip>
+          </div>
           <!-- User dropdown -->
           <el-dropdown trigger="click">
             <span class="user-info">
@@ -89,7 +102,7 @@
 <script setup>
 import { ref, computed, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowDown, UserFilled, Menu, SwitchButton } from '@element-plus/icons-vue'
+import { ArrowDown, UserFilled, Menu, SwitchButton, QuestionFilled, Reading } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { apiGet, apiPut } from '../api.js'
 
@@ -193,6 +206,18 @@ onMounted(() => {
 
 /* Hamburger */
 .hamburger-btn { display: none !important; color: #fff !important; }
+
+/* 帮助中心 / 接口文档 快捷入口 */
+.header-links { display: flex; align-items: center; gap: 2px; margin-right: 8px; }
+.header-link {
+  display: flex; align-items: center; gap: 4px; padding: 5px 9px; border-radius: 6px;
+  color: rgba(255,255,255,0.85); font-size: 12.5px; text-decoration: none; transition: all .15s;
+}
+.header-link:hover { color: #fff; background: rgba(255,255,255,0.12); }
+@media (max-width: 768px) {
+  .header-links { margin-right: 2px; }
+  .header-link .link-text { display: none; }
+}
 
 /* Content */
 .vben-content { flex: 1; padding: 16px 20px 24px; overflow-y: auto; background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%); min-height: calc(100vh - 58px); }
