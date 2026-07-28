@@ -21,11 +21,14 @@ from app.routers import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用生命周期：启动时初始化数据库 + 加载 API Key"""
+    """应用生命周期：启动时初始化数据库 + 加载 API Key + 启动 MCP 会话管理器"""
     await init_db()
     await seed_db()
     await reload_api_keys()
-    yield
+    # FastMCP 挂载到宿主应用时，必须显式运行其 session manager
+    from app.mcp_server import mcp as mcp_server
+    async with mcp_server.session_manager.run():
+        yield
 
 
 app = FastAPI(
@@ -50,6 +53,10 @@ if os.path.exists(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=os.path.join(STATIC_DIR, "static")), name="static")
     app.mount("/img", StaticFiles(directory=os.path.join(STATIC_DIR, "img")), name="img")
     app.mount("/js", StaticFiles(directory=os.path.join(STATIC_DIR, "js")), name="js")
+
+# MCP 接口（Streamable HTTP）：/mcp — 供 hibuddy 等外部 Agent 调用
+from app.mcp_server import McpAuthMiddleware, mcp as mcp_server
+app.mount("/mcp", McpAuthMiddleware(mcp_server.streamable_http_app()))
 
 # 注册路由
 app.include_router(auth_router.router)

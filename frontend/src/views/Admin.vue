@@ -301,6 +301,40 @@
           </el-card>
         </el-tab-pane>
 
+        <!-- 开放接口：REST 文档 + MCP 对接信息 -->
+        <el-tab-pane label="开放接口" name="openapi">
+          <el-card shadow="never">
+            <template #header><span style="font-weight:700">REST API 文档</span></template>
+            <el-descriptions :column="1" border size="small">
+              <el-descriptions-item label="Base URL">https://csic.thinkalike.com.cn</el-descriptions-item>
+              <el-descriptions-item label="在线调试（Swagger UI）">
+                <el-link type="primary" href="/docs" target="_blank">https://csic.thinkalike.com.cn/docs</el-link>
+              </el-descriptions-item>
+              <el-descriptions-item label="OpenAPI JSON">
+                <el-link type="primary" href="/openapi.json" target="_blank">https://csic.thinkalike.com.cn/openapi.json</el-link>
+              </el-descriptions-item>
+              <el-descriptions-item label="认证方式">请求头 Authorization: Bearer &lt;JWT&gt;（/api/auth/login 获取）</el-descriptions-item>
+              <el-descriptions-item label="接口文档">
+                <el-link type="primary" href="https://github.com/vinewood/csic-ai-platform/blob/master/docs/%E6%8E%A5%E5%8F%A3%E6%96%87%E6%A1%A3.md" target="_blank">docs/接口文档.md（GitHub）</el-link>
+              </el-descriptions-item>
+            </el-descriptions>
+
+            <el-divider />
+            <div style="font-weight:700;margin-bottom:8px">MCP 接口（Agent 对接，供 hibuddy 等项目使用）</div>
+            <el-descriptions :column="1" border size="small">
+              <el-descriptions-item label="MCP 端点">https://csic.thinkalike.com.cn/mcp/</el-descriptions-item>
+              <el-descriptions-item label="协议">Model Context Protocol · Streamable HTTP（2025-03-26）</el-descriptions-item>
+              <el-descriptions-item label="认证">Bearer 平台 JWT 或 MCP 静态令牌（api_configs 表 mcp 记录维护）</el-descriptions-item>
+              <el-descriptions-item label="工具清单">
+                csic_chat 对话 · csic_knowledge_search 知识库检索 · csic_academic_search 学术检索 · csic_daily_news 每日资讯 · csic_list_skills 技能列表
+              </el-descriptions-item>
+              <el-descriptions-item label="接入指南">
+                <el-link type="primary" href="https://github.com/vinewood/csic-ai-platform/blob/master/docs/MCP%E6%8E%A5%E5%85%A5%E6%8C%87%E5%8D%97.md" target="_blank">docs/MCP接入指南.md（GitHub）</el-link>
+              </el-descriptions-item>
+            </el-descriptions>
+          </el-card>
+        </el-tab-pane>
+
       </el-tabs>
     </el-card>
 
@@ -309,7 +343,7 @@
       <el-form :model="userDialog.form" label-width="70px">
         <el-form-item label="用户名"><el-input v-model="userDialog.form.name" /></el-form-item>
         <el-form-item label="邮箱"><el-input v-model="userDialog.form.email" /></el-form-item>
-        <el-form-item v-if="!userDialog.isEdit" label="密码"><el-input v-model="userDialog.form.password" placeholder="默认 ***REMOVED-PASSWORD***" /></el-form-item>
+        <el-form-item v-if="!userDialog.isEdit" label="密码"><el-input v-model="userDialog.form.password" placeholder="留空则生成随机初始密码（仅显示一次）" /></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="userDialog.visible=false">取消</el-button>

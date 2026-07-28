@@ -41,7 +41,7 @@
         </div>
 
         <div class="masonry" v-else>
-          <div v-for="item in filteredArticles" :key="item.id" class="masonry-card" @click="openArticle(item)">
+          <div v-for="item in filteredArticles" :key="item.id" class="masonry-card" :style="{'--card-accent': item.gradient}" @click="openArticle(item)">
             <div class="card-info">
               <div class="card-meta">
                 <span class="card-src">{{ item.source }}</span>
@@ -50,7 +50,7 @@
                 <span v-if="item.summary" class="card-ai">AI</span>
               </div>
               <h4 class="card-title">{{ cleanHtml(item.title) }}</h4>
-              <p v-if="item.summary" class="card-desc">{{ cleanHtml(item.summary).slice(0, 120) }}</p>
+              <p v-if="item.summary" class="card-desc">{{ cleanHtml(item.summary) }}</p>
             </div>
           </div>
         </div>
@@ -232,19 +232,34 @@ function openUrl(url) { if (url) window.open(url) }
 /* 瀑布流 */
 .masonry { column-count: 3; column-gap: 14px; }
 .masonry-card {
-  break-inside: avoid; background: #fff; border-radius: 10px;
+  position: relative; break-inside: avoid; background: #fff; border-radius: 10px;
   overflow: hidden; cursor: pointer; margin-bottom: 12px;
-  border: 1px solid #eee; transition: all 0.2s;
+  border: 1px solid #eceef2; box-shadow: 0 1px 2px rgba(16,24,40,.04);
+  transition: transform .2s, box-shadow .2s, border-color .2s;
 }
-.masonry-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.06); }
-.card-info { padding: 14px 16px; }
-.card-meta { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
-.card-src { font-size: 11px; color: #1677ff; font-weight:500; }
+/* 分类色顶条：色值由卡片 --card-accent 注入 */
+.masonry-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--card-accent, #e5e7eb); opacity: .9;
+}
+.masonry-card:hover {
+  transform: translateY(-3px); border-color: #dde3ec;
+  box-shadow: 0 12px 24px -8px rgba(16,24,40,.12), 0 4px 8px -2px rgba(16,24,40,.05);
+}
+.card-info { padding: 16px 16px 14px; }
+.card-meta { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+.card-src {
+  font-size: 11px; color: #1677ff; font-weight: 600;
+  background: #f0f5ff; padding: 1px 8px; border-radius: 10px;
+}
 .card-time { font-size: 10px; color: #94a3b8; }
 .card-cat { font-size: 10px; color: #fff; padding: 1px 8px; border-radius: 10px; }
 .card-ai { background: #10b981; color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 10px; }
-.card-title { margin: 0 0 4px; font-size: 14px; font-weight:600; color: #1a1a2e; line-height:1.5; word-break:break-word; }
-.card-desc { font-size: 12px; color: #6b7280; line-height:1.6; margin:0; word-break:break-word; }
+.card-title { margin: 0 0 6px; font-size: 14.5px; font-weight:650; color: #1a1a2e; line-height:1.55; word-break:break-word; }
+.card-desc {
+  font-size: 12px; color: #6b7280; line-height:1.65; margin:0; word-break:break-word;
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+}
 
 @media (max-width: 900px) { .masonry { column-count: 2; } }
 @media (max-width: 600px) {
