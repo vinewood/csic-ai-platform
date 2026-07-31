@@ -16,7 +16,7 @@
       </div>
 
       <el-row :gutter="16">
-        <el-col :xs="24" :sm="12" :md="8" v-for="ds in datasets" :key="ds.id" style="margin-bottom:16px">
+        <el-col :xs="24" :sm="12" :md="8" :lg="6" :xl="4" v-for="ds in datasets" :key="ds.id" style="margin-bottom:16px">
           <el-card shadow="hover" class="kb-card" @click="openDataset(ds)">
             <div class="kb-card-hd">
               <el-avatar :size="36" style="background:#1677ff12;color:#1677ff">{{ ds.name?.[0] }}</el-avatar>
@@ -45,7 +45,7 @@
       <div v-if="localKbs.length" style="margin-top:8px">
         <div style="font-size:11px;color:#bbb;margin-bottom:8px;font-weight:600">内置知识库</div>
         <el-row :gutter="16">
-          <el-col :xs="24" :sm="12" :md="8" v-for="kb in localKbs" :key="kb.id" style="margin-bottom:16px">
+          <el-col :xs="24" :sm="12" :md="8" :lg="6" :xl="4" v-for="kb in localKbs" :key="kb.id" style="margin-bottom:16px">
             <el-card shadow="hover" class="kb-card">
               <div class="kb-card-hd">
                 <el-avatar :size="36" style="background:#f0f5ff;color:#1677ff">{{ kb.name?.[0] }}</el-avatar>

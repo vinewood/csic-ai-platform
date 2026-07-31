@@ -182,7 +182,7 @@ onMounted(() => {
 .vben-header { position: relative; height: 58px; flex-shrink: 0; z-index: 100; overflow: hidden; background: linear-gradient(135deg, #050d1a 0%, #0a1628 30%, #0f2347 60%, #1a365d 100%); }
 .vben-header::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.25), transparent); }
 
-.bar-inner { position: relative; width: 100%; max-width: 1440px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 58px; z-index: 1; }
+.bar-inner { position: relative; width: 100%; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 58px; z-index: 1; }
 
 /* Brand */
 .vben-header-left { display: flex; align-items: center; z-index: 1; margin-right: auto; }
@@ -228,7 +228,8 @@ onMounted(() => {
 
 /* Content */
 .vben-content { flex: 1; padding: 16px 20px 24px; overflow-y: auto; background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%); min-height: calc(100vh - 58px); }
-.content-inner { max-width: 1440px; margin: 0 auto; }
+/* 高分辨率适配：不再设 max-width 上限，全宽自适应（原 1440px 帽导致宽屏两侧留白） */
+.content-inner { width: 100%; margin: 0 auto; }
 
 /* Mobile nav drawer */
 .mobile-nav { padding: 12px 0; }

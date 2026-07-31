@@ -319,7 +319,7 @@ async function handleUpload(file) {
 
 <style scoped>
 /* ===== 布局骨架 ===== */
-.chat-layout { display:flex; height:calc(100vh - 160px); background:#f7f8fa; }
+.chat-layout { display:flex; height:calc(100vh - 102px); background:#f7f8fa; } /* 实际占位=顶栏58+内容上下padding40+余量4，原160留白过多 */
 .chat-sidebar { width:216px; min-width:216px; background:#fff; border-right:1px solid #ebedf0; display:flex; flex-direction:column; }
 .sidebar-header { padding:12px; }
 .new-chat-btn { width:100%; }

@@ -213,7 +213,8 @@ function openUrl(url) { if (url) window.open(url) }
 .page-sub { font-size: 12px; color: #94a3b8; }
 .topbar-right { display: flex; align-items: center; gap: 10px; }
 
-.news-layout { display: flex; max-width: 1200px; margin: 0 auto; }
+/* 高分辨率适配：全宽布局，列数随屏宽递增（原 1200px 帽 + 固定 3 列浪费宽屏空间） */
+.news-layout { display: flex; width: 100%; margin: 0 auto; }
 
 .news-sidebar {
   width: 180px; min-width: 180px; padding: 16px; background: #fff;
@@ -261,6 +262,8 @@ function openUrl(url) { if (url) window.open(url) }
   display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
 }
 
+@media (min-width: 1400px) { .masonry { column-count: 4; } }
+@media (min-width: 1900px) { .masonry { column-count: 5; } }
 @media (max-width: 900px) { .masonry { column-count: 2; } }
 @media (max-width: 600px) {
   .masonry { column-count: 1; }

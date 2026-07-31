@@ -412,7 +412,7 @@ async function handleUpload(file) {
 </script>
 
 <style scoped>
-.teach-layout { display:flex; height:calc(100vh - 160px); background:#f7f8fa; margin:0 8px; }
+.teach-layout { display:flex; height:calc(100vh - 102px); background:#f7f8fa; margin:0 8px; } /* 同 Chat：原 160 底部留白过多 */
 .teach-panel { width:170px; min-width:170px; background:#fff; border-right:1px solid #ebedf0; padding:10px 8px; display:flex; flex-direction:column; }
 .new-btn { width:100%; margin-bottom:4px; }
 .panel-title { font-size:10px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:1px; padding:0 4px 6px; }

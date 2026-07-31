@@ -15,7 +15,7 @@
     </div>
 
     <el-row :gutter="12">
-      <el-col :xs="24" :sm="12" :md="8" :lg="6" v-for="s in displayed" :key="s.id" style="margin-bottom:12px">
+      <el-col :xs="24" :sm="12" :md="8" :lg="6" :xl="4" v-for="s in displayed" :key="s.id" style="margin-bottom:12px">
         <el-card shadow="hover" class="skill-card" @click="openDetail(s)">
           <div class="skill-top">
             <el-button :type="s.favorited?'warning':'default'" :icon="s.favorited?StarFilled:Star" size="small" circle @click.stop="toggleFav(s)" />

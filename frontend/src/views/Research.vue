@@ -304,7 +304,7 @@ function render(t){ if(!t)return''; try{return marked.parse(t.replace(/\n{3,}/g,
 .r-tabs{display:flex;align-items:center;gap:0}
 .r-tab{display:flex;align-items:center;gap:6px;padding:8px 18px;cursor:pointer;font-size:13px;font-weight:500;color:#6b7280;border-bottom:3px solid transparent;transition:all .15s;margin-bottom:-1px}
 .r-tab:hover{color:#1677ff}.r-tab.active{color:#1677ff;font-weight:600;border-bottom-color:#1677ff}
-.r-body{height:calc(100vh - 200px);overflow:hidden}
+.r-body{height:calc(100vh - 142px);overflow:hidden}/* 实际占位=顶栏58+内容上下padding40+页内topbar约41+余量3，原200留白过多 */
 .full-chat{display:flex;height:100%}
 .chat-side{width:180px;min-width:180px;background:#f8f9fb;border-right:1px solid #e5e7eb;padding:8px;display:flex;flex-direction:column}
 .func-group-label{font-size:10px;color:#bbb;text-transform:uppercase;font-weight:600;padding:2px 4px}
